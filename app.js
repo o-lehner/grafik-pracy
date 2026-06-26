@@ -894,7 +894,22 @@ function closeAssignModal() {
   state.activeCellDay = null;
   state.modalPeople = [''];
   state.unrecognizedNames = [];
-  state.pendingSaveCallback = null;
+  state.pendingSaveContext = null; // Zmieniono na kontekst
+}
+
+// Funkcja do zamykania modala z opcjonalnym potwierdzeniem
+function confirmCloseAssignModal() {
+  // Sprawdź, czy są jakieś wprowadzone dane (osoby lub czas różny od domyślnego)
+  const peopleInputsFilled = state.modalPeople.filter(n => n.trim() !== '').length > 0;
+  const timeInputChanged = document.getElementById('modalTimeInput').value.trim() !== '08:00–12:00';
+
+  if (peopleInputsFilled || timeInputChanged) {
+    if (confirm('Czy na pewno chcesz wyjść bez zapisywania dyżuru?')) {
+      closeAssignModal();
+    }
+  } else {
+    closeAssignModal();
+  }
 }
 
 // --- RENDER DYNAMIC AUTOCOMPLETE INPUTS (Point 3 & 4 fixed) ---
@@ -1742,15 +1757,20 @@ function setupEventListeners() {
         
         // Determine if we are focused on a person input with suggestions dropdown visible
         const isAutocompleteInput = active && active.classList.contains('modal-person-input');
-        const suggestionsOpen = isAutocompleteInput && !active.nextElementSibling.classList.contains('hidden');
+        const suggestionsOpen = isAutocompleteInput && active.nextElementSibling && !active.nextElementSibling.classList.contains('hidden');
         
         // Check if focused on other fields that shouldn't trigger global save directly
         const isButton = active && (active.tagName === 'BUTTON');
         
+        // Zapisz, jeśli nie ma aktywnych sugestii i nie jesteśmy na przycisku.
+        // Również, jeśli jesteśmy w polu osoby, ale dropdown jest zamknięty, to potraktuj to jako koniec wpisywania osoby.
         if (!suggestionsOpen && !isButton) {
           e.preventDefault();
           saveShift(true);
         }
+      } else if (e.key === 'Escape') { // Dodano obsługę klawisza Escape
+        e.preventDefault(); 
+        confirmCloseAssignModal(); 
       }
     }
     

@@ -692,9 +692,9 @@ body {
 }
 
 /* DYNAMIC TODAY COLUMN HIGHLIGHT (Point 1) */
-.schedule-table th.col-day.highlighted {
+.schedule-table th.col-today-th { /* Zmieniono z .highlighted */
   color: var(--primary) !important;
-  background-color: #fafdff; /* very subtle highlight for header too */
+  background-color: #fafdf5; /* very subtle highlight for header too */
 }
 
 .schedule-table tr:last-child td {
@@ -717,7 +717,7 @@ body {
 }
 
 /* Dynamic today body cells highlight (Point 1) */
-.schedule-table td.cell-day.col-today-cell {
+.schedule-table td.cell-day.col-today-td { /* Zmieniono z .col-today-cell */
   background-color: #fafdf5 !important;
 }
 
