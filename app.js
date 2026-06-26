@@ -988,50 +988,48 @@ function renderPeopleInputs() {
         }
       } 
       else if (e.key === 'Enter') {
-        e.preventDefault();
+        e.preventDefault(); // Zapobiegaj domyślnemu zachowaniu przeglądarki (np. wysyłaniu formularza)
         
         // Obsługa Enter:
         // 1. Jeśli dropdown jest otwarty i jest wybrana sugestia - wybierz ją.
         // 2. Jeśli dropdown jest otwarty, ale nic nie wybrano - zamknij dropdown i zostaw kursor w polu.
         // 3. Jeśli dropdown jest zamknięty i wpisana jest wartość - przejdź do następnego pola osoby lub do pola czasu.
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          if (!dropdown.classList.contains('hidden')) {
-            if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
-              const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
-              selectAutocompleteSuggestion(index, selectedName); // Kursor zostanie na końcu
-              // Nie przenosimy fokusu od razu, użytkownik może chcieć użyć przecinka lub ponownie nacisnąć Enter.
-            } else {
-              // Nic nie wybrano, zamknij dropdown i zachowaj fokus
-              dropdown.classList.add('hidden');
-              state.activeSuggestionIndex = -1;
-              const len = input.value.length;
-              input.setSelectionRange(len, len);
-            }
+        if (!dropdown.classList.contains('hidden')) {
+          if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+            const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+            selectAutocompleteSuggestion(index, selectedName); // Kursor zostanie na końcu
+            // Nie przenosimy fokusu od razu, użytkownik może chcieć użyć przecinka lub ponownie nacisnąć Enter.
           } else {
-            // Dropdown jest zamknięty (albo nigdy nie był otwarty, albo został zamknięty Enterem wcześniej)
-            // Przeniesienie fokusu:
-            if (index < state.modalPeople.length - 1) {
-              focusPeopleInputRow(index + 1);
-            } else {
-              document.getElementById('modalTimeInput').focus();
-            }
+            // Nic nie wybrano, zamknij dropdown i zachowaj fokus
+            dropdown.classList.add('hidden');
+            state.activeSuggestionIndex = -1;
+            const len = input.value.length;
+            input.setSelectionRange(len, len);
+          }
+        } else {
+          // Dropdown jest zamknięty (albo nigdy nie był otwarty, albo został zamknięty Enterem wcześniej)
+          // Przeniesienie fokusu:
+          if (index < state.modalPeople.length - 1) {
+            focusPeopleInputRow(index + 1);
+          } else {
+            document.getElementById('modalTimeInput').focus();
           }
         }
-        else if (e.key === ',') {
-          e.preventDefault(); 
-          
-          let chosenName = val.trim();
-          if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
-            chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
-          }
-          
-          state.modalPeople[index] = chosenName;
-          state.modalPeople.push('');
-          renderPeopleInputs();
-          focusPeopleInputRow(state.modalPeople.length - 1);
+      }
+      else if (e.key === ',') { // Prawidłowo umieszczona obsługa przecinka
+        e.preventDefault(); 
+        
+        let chosenName = val.trim();
+        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+          chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
         }
-      });
+        
+        state.modalPeople[index] = chosenName;
+        state.modalPeople.push('');
+        renderPeopleInputs();
+        focusPeopleInputRow(state.modalPeople.length - 1);
+      }
+    });
       
       input.addEventListener('focus', () => {
         if (input.value.trim() !== '') {
