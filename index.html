@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grafik Pracy BLDSRV</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- HEADER -->
+    <header class="main-header">
+      <div class="header-left">
+        <div class="logo-container">
+          <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+        <h1>GRAFIK PRACY BLDSRV</h1>
+      </div>
+      <div class="header-center">
+        <div class="week-badge" id="weekRange">22.06 - 26.06</div>
+      </div>
+      <div class="header-right">
+        <span class="profile-label">PROFIL:</span>
+        <div class="custom-select-wrapper">
+          <select id="profileSelect" class="profile-select">
+            <!-- Dynamic loading -->
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="nav-tabs-container">
+      <div class="nav-tabs">
+        <button class="nav-tab" data-tab="my-tasks" id="tabMyTasks">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          Moje Zadania
+        </button>
+        <button class="nav-tab active" data-tab="full-schedule" id="tabFullSchedule">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="9"></rect>
+            <rect x="14" y="3" width="7" height="5"></rect>
+            <rect x="14" y="12" width="7" height="9"></rect>
+            <rect x="3" y="16" width="7" height="5"></rect>
+          </svg>
+          Cały Grafik
+        </button>
+        <button class="nav-tab" data-tab="manage-team" id="tabManageTeam">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          Zarządzaj Zespołem
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+      <!-- 1. MY TASKS TAB -->
+      <section id="contentMyTasks" class="tab-content hidden">
+        <div class="section-header">
+          <div class="section-title-wrapper">
+            <span class="status-dot-active"></span>
+            <h2>Pulpit Osobisty: <span id="myTasksUserName">Bartosz Toporowski</span></h2>
+          </div>
+          <p class="section-subtitle">Zestawienie zadań, do których zostałeś wpisany w tym tygodniu.</p>
+        </div>
+        
+        <div class="my-tasks-grid" id="myTasksGrid">
+          <!-- Dynamic 5 days columns -->
+        </div>
+      </section>
+
+      <!-- 2. FULL SCHEDULE TAB -->
+      <section id="contentFullSchedule" class="tab-content">
+        <div class="schedule-table-wrapper">
+          <table class="schedule-table" id="scheduleTable">
+            <thead>
+              <tr>
+                <th class="col-task">KATEGORIA / ZADANIE</th>
+                <th class="col-day" data-day="Poniedziałek">PONIEDZIAŁEK</th>
+                <th class="col-day" data-day="Wtorek">WTOREK</th>
+                <th class="col-day" data-day="Środa">ŚRODA</th>
+                <th class="col-day highlighted" data-day="Czwartek">CZWARTEK</th>
+                <th class="col-day" data-day="Piątek">PIĄTEK</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleTableBody">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. MANAGE TEAM TAB -->
+      <section id="contentManageTeam" class="tab-content hidden">
+        <div class="team-management-grid">
+          <!-- Left: Add Person Card -->
+          <div class="card add-person-card">
+            <div class="card-header">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <line x1="19" y1="8" x2="19" y2="14"></line>
+                <line x1="22" y1="11" x2="16" y2="11"></line>
+              </svg>
+              <h3>Dodaj Nową Osobę</h3>
+            </div>
+            <div class="card-body">
+              <form id="addPersonForm" onsubmit="return false;">
+                <div class="form-group">
+                  <label for="newPersonName">IMIĘ I NAZWISKO</label>
+                  <input type="text" id="newPersonName" placeholder="np. Marta Wiśniewska" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label>ROLA SYSTEMOWA</label>
+                  <div class="role-toggle-group">
+                    <button type="button" class="role-toggle-btn active" data-role="Pracownik">Pracownik</button>
+                    <button type="button" class="role-toggle-btn" data-role="Nadzorca">Nadzorca</button>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-success btn-full" id="btnAddPerson">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Dodaj do zespołu
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Right: Members List Card -->
+          <div class="card members-list-card">
+            <div class="card-header space-between">
+              <div class="header-title-group">
+                <h3>Zarejestrowani członkowie zespołu (<span id="membersCount">0</span>)</h3>
+              </div>
+              <div class="search-wrapper">
+                <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="searchMemberInput" placeholder="Wyszukaj członka zespołu...">
+              </div>
+            </div>
+            <div class="card-body scrollable">
+              <div class="members-list" id="membersListContainer">
+                <!-- Dynamic member items -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: ASSIGN SHIFT -->
+  <div class="modal-overlay hidden" id="assignModal">
+    <div class="modal-container">
+      <button class="modal-close-btn" id="btnModalClose">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      
+      <div class="modal-header">
+        <div class="modal-title-wrapper">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <h2>Przypisz osobę i czas</h2>
+        </div>
+        <p class="modal-subtitle">Zadanie: <span id="modalTaskName" class="highlight-text">Cleaning 1.0</span> – <span id="modalDayName">Poniedziałek</span></p>
+      </div>
+
+      <div class="modal-body">
+        <form id="assignForm" onsubmit="return false;">
+          <div class="form-group">
+            <label for="modalEmployeeSelect">OSOBA:</label>
+            <div class="custom-select-wrapper">
+              <select id="modalEmployeeSelect" required>
+                <!-- Dynamic loading -->
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="modalTimeInput">GODZINY PRACY:</label>
+            <input type="text" id="modalTimeInput" placeholder="np. 08:00–12:00" required autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <div class="quick-select-header">
+              <label>SZYBKI WYBÓR:</label>
+              <button type="button" class="btn-link" id="btnManagePresets">ZARZĄDZAJ</button>
+            </div>
+            <div class="quick-select-grid" id="quickSelectGrid">
+              <!-- Preset buttons -->
+              <button type="button" class="preset-btn" data-time="08:00–12:00" data-preset="Rano (08-12)">
+                <span class="preset-label">Rano (08-12)</span>
+                <span class="preset-value">08:00–12:00</span>
+              </button>
+              <button type="button" class="preset-btn" data-time="13:00–17:00" data-preset="Popołudnie (13-17)">
+                <span class="preset-label">Popołudnie (13-17)</span>
+                <span class="preset-value">13:00–17:00</span>
+              </button>
+              <button type="button" class="preset-btn" data-time="08:00–16:00" data-preset="Cały etat (08-16)">
+                <span class="preset-label">Cały etat (08-16)</span>
+                <span class="preset-value">08:00–16:00</span>
+              </button>
+              <button type="button" class="preset-btn" data-time="10:00–14:00" data-preset="Środek (10-14)">
+                <span class="preset-label">Środek (10-14)</span>
+                <span class="preset-value">10:00–14:00</span>
+              </button>
+              <button type="button" class="preset-btn" data-time="1h" data-preset="1 godzina">
+                <span class="preset-label">1 godzina</span>
+                <span class="preset-value">1h</span>
+              </button>
+              <button type="button" class="preset-btn" data-time="2h" data-preset="2 godziny">
+                <span class="preset-label">2 godziny</span>
+                <span class="preset-value">2h</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <div class="modal-footer-top">
+              <button type="button" class="btn btn-secondary-outline" id="btnAssignAnother">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <line x1="19" y1="8" x2="19" y2="14"></line>
+                  <line x1="22" y1="11" x2="16" y2="11"></line>
+                </svg>
+                PRZYPISZ KOLEJNĄ OSOBĘ
+              </button>
+              <button type="submit" class="btn btn-success" id="btnSaveShift">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                ZAPISZ
+              </button>
+            </div>
+            <div class="modal-footer-bottom">
+              <button type="button" class="btn btn-text" id="btnCancelShift">Anuluj [Esc]</button>
+              <button type="button" class="btn btn-danger-outline hidden" id="btnDeleteShift">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+                Usuń zmianę
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION CONTAINER FOR TOASTS -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
