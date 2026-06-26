@@ -1673,6 +1673,7 @@ function setupEventListeners() {
   timeInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation(); // Dodano: Zatrzymuje propagację, aby globalny listener nie wywołał saveShift
       saveShift(true);
     }
   });
