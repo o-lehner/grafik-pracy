@@ -7,7 +7,7 @@
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
   <link rel="stylesheet" href="style.css">
 </head>
@@ -89,22 +89,24 @@
 
       <!-- 2. FULL SCHEDULE TAB -->
       <section id="contentFullSchedule" class="tab-content">
-        <div class="schedule-table-wrapper">
-          <table class="schedule-table" id="scheduleTable">
-            <thead>
-              <tr>
-                <th class="col-task">KATEGORIA / ZADANIE</th>
-                <th class="col-day" data-day="Poniedziałek">PONIEDZIAŁEK</th>
-                <th class="col-day" data-day="Wtorek">WTOREK</th>
-                <th class="col-day" data-day="Środa">ŚRODA</th>
-                <th class="col-day highlighted" data-day="Czwartek">CZWARTEK</th>
-                <th class="col-day" data-day="Piątek">PIĄTEK</th>
-              </tr>
-            </thead>
-            <tbody id="scheduleTableBody">
-              <!-- Dynamic rows -->
-            </tbody>
-          </table>
+        <!-- Admin controls for adding categories -->
+        <div class="admin-schedule-controls hidden" id="adminScheduleControls">
+          <button class="btn btn-primary" id="btnShowAddCategory">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Dodaj Nową Kategorię
+          </button>
+          <div class="inline-form hidden" id="addCategoryFormContainer">
+            <input type="text" id="newCategoryNameInput" placeholder="Nazwa nowej kategorii..." autocomplete="off">
+            <button class="btn btn-success" id="btnSubmitCategory">Dodaj</button>
+            <button class="btn btn-text" id="btnCancelCategory">Anuluj</button>
+          </div>
+        </div>
+
+        <div class="categories-container" id="categoriesContainer">
+          <!-- Dynamic category blocks with tables -->
         </div>
       </section>
 
@@ -120,7 +122,7 @@
                 <line x1="19" y1="8" x2="19" y2="14"></line>
                 <line x1="22" y1="11" x2="16" y2="11"></line>
               </svg>
-              <h3>Dodaj Nową Osobę</h3>
+              <h3>Dodaj Nową Osoba</h3>
             </div>
             <div class="card-body">
               <form id="addPersonForm" onsubmit="return false;">
@@ -131,8 +133,8 @@
                 <div class="form-group">
                   <label>ROLA SYSTEMOWA</label>
                   <div class="role-toggle-group">
-                    <button type="button" class="role-toggle-btn active" data-role="Pracownik">Pracownik</button>
-                    <button type="button" class="role-toggle-btn" data-role="Nadzorca">Nadzorca</button>
+                    <button type="button" class="role-toggle-btn active" data-role="Osoba">Osoba</button>
+                    <button type="button" class="role-toggle-btn" data-role="Administrator">Administrator</button>
                   </div>
                 </div>
                 <button type="submit" class="btn btn-success btn-full" id="btnAddPerson">
@@ -150,14 +152,14 @@
           <div class="card members-list-card">
             <div class="card-header space-between">
               <div class="header-title-group">
-                <h3>Zarejestrowani członkowie zespołu (<span id="membersCount">0</span>)</h3>
+                <h3>Zarejestrowane osoby w zespole (<span id="membersCount">0</span>)</h3>
               </div>
               <div class="search-wrapper">
                 <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" id="searchMemberInput" placeholder="Wyszukaj członka zespołu...">
+                <input type="text" id="searchMemberInput" placeholder="Wyszukaj osobę w zespole...">
               </div>
             </div>
             <div class="card-body scrollable">
@@ -181,102 +183,112 @@
         </svg>
       </button>
       
-      <div class="modal-header">
-        <div class="modal-title-wrapper">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line>
-            <line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          <h2>Przypisz osobę i czas</h2>
+      <!-- MAIN FORM CONTENT -->
+      <div id="modalMainContent">
+        <div class="modal-header">
+          <div class="modal-title-wrapper">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <h2>Przypisz osobę i czas</h2>
+          </div>
+          <p class="modal-subtitle">Zadanie: <span id="modalTaskName" class="highlight-text">Cleaning 1.0</span> – <span id="modalDayName">Poniedziałek</span></p>
         </div>
-        <p class="modal-subtitle">Zadanie: <span id="modalTaskName" class="highlight-text">Cleaning 1.0</span> – <span id="modalDayName">Poniedziałek</span></p>
+
+        <div class="modal-body">
+          <form id="assignForm" onsubmit="return false;">
+            <!-- Autocomplete Dynamic Inputs for OSOBA -->
+            <div class="form-group">
+              <label>OSOBA (wpisz i kliknij [Enter], użyj [,] aby dodać kolejną):</label>
+              <div id="modalPeopleInputsContainer" class="people-inputs-container">
+                <!-- Dynamic autocomplete rows will be appended here -->
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="modalTimeInput">GODZINY PRACY (zatwierdź [Enter]):</label>
+              <input type="text" id="modalTimeInput" placeholder="np. 08:00–12:00" required autocomplete="off">
+            </div>
+
+            <!-- Preset Selection Section -->
+            <div class="form-group">
+              <div class="quick-select-header">
+                <label>SZYBKI WYBÓR:</label>
+                <button type="button" class="btn-link" id="btnManagePresets">ZARZĄDZAJ</button>
+              </div>
+              <div class="quick-select-grid" id="quickSelectGrid">
+                <!-- Dynamic preset buttons -->
+              </div>
+            </div>
+
+            <!-- PRESET MANAGER SUB-FORM (Initially Hidden) -->
+            <div id="presetManagerContainer" class="preset-manager-panel hidden">
+              <div class="preset-manager-header">
+                <h4>Zarządzanie Szybkimi Wyborami</h4>
+              </div>
+              <div class="preset-list" id="presetManagerList">
+                <!-- Preset items with delete buttons -->
+              </div>
+              <div class="add-preset-form">
+                <h5>Dodaj Nowy Szablon</h5>
+                <div class="add-preset-row">
+                  <input type="text" id="newPresetLabel" placeholder="Etykieta (np. Rano)" autocomplete="off">
+                  <input type="text" id="newPresetTime" placeholder="Godziny (np. 08:00–12:00)" autocomplete="off">
+                  <button type="button" class="btn btn-success" id="btnAddPresetSubmit">Dodaj</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- MODAL FOOTER BUTTONS -->
+            <div class="modal-footer">
+              <div class="modal-footer-top">
+                <button type="button" class="btn btn-text" id="btnCancelShift">Anuluj [Esc]</button>
+                <button type="submit" class="btn btn-success" id="btnSaveShift">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  ZAPISZ
+                </button>
+              </div>
+              <div class="modal-footer-bottom">
+                <button type="button" class="btn btn-danger-outline hidden" id="btnDeleteShift">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                  Usuń zmianę
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <div class="modal-body">
-        <form id="assignForm" onsubmit="return false;">
-          <div class="form-group">
-            <label for="modalEmployeeSelect">OSOBA:</label>
-            <div class="custom-select-wrapper">
-              <select id="modalEmployeeSelect" required>
-                <!-- Dynamic loading -->
-              </select>
-            </div>
+      <!-- UNRECOGNIZED NAMES INTERACTIVE DIALOG (Initially Hidden) -->
+      <div id="unrecognizedNamesPanel" class="unrecognized-panel hidden">
+        <div class="modal-header">
+          <div class="modal-title-wrapper danger-title">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <h2>Nieznana osoba w zespole</h2>
           </div>
-          
-          <div class="form-group">
-            <label for="modalTimeInput">GODZINY PRACY:</label>
-            <input type="text" id="modalTimeInput" placeholder="np. 08:00–12:00" required autocomplete="off">
+          <p class="modal-subtitle">Wpisałeś imię i nazwisko, którego nie ma w bazie członków zespołu.</p>
+        </div>
+        <div class="modal-body">
+          <div id="unrecognizedNamesListContainer" class="unrecognized-names-list">
+            <!-- Dynamic unrecognized name handling cards -->
           </div>
-
-          <div class="form-group">
-            <div class="quick-select-header">
-              <label>SZYBKI WYBÓR:</label>
-              <button type="button" class="btn-link" id="btnManagePresets">ZARZĄDZAJ</button>
-            </div>
-            <div class="quick-select-grid" id="quickSelectGrid">
-              <!-- Preset buttons -->
-              <button type="button" class="preset-btn" data-time="08:00–12:00" data-preset="Rano (08-12)">
-                <span class="preset-label">Rano (08-12)</span>
-                <span class="preset-value">08:00–12:00</span>
-              </button>
-              <button type="button" class="preset-btn" data-time="13:00–17:00" data-preset="Popołudnie (13-17)">
-                <span class="preset-label">Popołudnie (13-17)</span>
-                <span class="preset-value">13:00–17:00</span>
-              </button>
-              <button type="button" class="preset-btn" data-time="08:00–16:00" data-preset="Cały etat (08-16)">
-                <span class="preset-label">Cały etat (08-16)</span>
-                <span class="preset-value">08:00–16:00</span>
-              </button>
-              <button type="button" class="preset-btn" data-time="10:00–14:00" data-preset="Środek (10-14)">
-                <span class="preset-label">Środek (10-14)</span>
-                <span class="preset-value">10:00–14:00</span>
-              </button>
-              <button type="button" class="preset-btn" data-time="1h" data-preset="1 godzina">
-                <span class="preset-label">1 godzina</span>
-                <span class="preset-value">1h</span>
-              </button>
-              <button type="button" class="preset-btn" data-time="2h" data-preset="2 godziny">
-                <span class="preset-label">2 godziny</span>
-                <span class="preset-value">2h</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <div class="modal-footer-top">
-              <button type="button" class="btn btn-secondary-outline" id="btnAssignAnother">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="9" cy="7" r="4"></circle>
-                  <line x1="19" y1="8" x2="19" y2="14"></line>
-                  <line x1="22" y1="11" x2="16" y2="11"></line>
-                </svg>
-                PRZYPISZ KOLEJNĄ OSOBĘ
-              </button>
-              <button type="submit" class="btn btn-success" id="btnSaveShift">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                ZAPISZ
-              </button>
-            </div>
-            <div class="modal-footer-bottom">
-              <button type="button" class="btn btn-text" id="btnCancelShift">Anuluj [Esc]</button>
-              <button type="button" class="btn btn-danger-outline hidden" id="btnDeleteShift">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  <line x1="10" y1="11" x2="10" y2="17"></line>
-                  <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-                Usuń zmianę
-              </button>
-            </div>
-          </div>
-        </form>
+        </div>
       </div>
+      
     </div>
   </div>
 
