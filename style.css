@@ -2,7 +2,8 @@
   Grafik Pracy BLDSRV - Premium Stylesheet
   Clean, modern design matching the provided screenshots.
   Enhanced for autocomplete, categories, preset manager, and unrecognized names dialogs.
-  V3: Added Undo/Redo header controls and simplified presets layout.
+  V4: Enhanced coworker list alignment, compact columns presets with absolute X in corners,
+  aligned 3-column modal footer, and hover-triggered quick card deletion.
 */
 
 :root {
@@ -400,14 +401,15 @@ body {
   padding: 20px 0;
 }
 
-/* INDIVIDUAL VIEW COWORKERS SECTION (Point 8) */
+/* INDIVIDUAL VIEW COWORKERS SECTION (Point 1 - Beautiful Aligned Layout) */
 .coworkers-section {
   border-top: 1px dashed var(--border-color);
   padding-top: 8px;
   margin-top: 6px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  width: 100%;
 }
 
 .day-column-card.is-today .coworkers-section {
@@ -429,8 +431,9 @@ body {
 .coworkers-list-mini {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   list-style: none;
+  width: 100%;
 }
 
 .coworker-item-mini {
@@ -438,14 +441,19 @@ body {
   color: var(--text-medium);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  justify-content: space-between; /* Align name to left, time to right */
+  gap: 8px;
+  width: 100%;
 }
 
 .coworker-name-group {
   display: flex;
   align-items: center;
   gap: 5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .coworker-name-group::before {
@@ -461,6 +469,17 @@ body {
   font-size: 10px;
   color: var(--text-muted);
   font-weight: 600;
+  background-color: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.day-column-card.is-today .coworker-time-badge {
+  background-color: #ffffff;
+  border-color: var(--primary-border);
 }
 
 
@@ -750,7 +769,9 @@ body {
 .shift-card-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between; /* Space out name and delete button */
+  width: 100%;
+  position: relative;
 }
 
 .status-dot {
@@ -768,6 +789,35 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-grow: 1;
+}
+
+/* Hover-triggered quick shift card deletion (Point 6) */
+.shift-card-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  opacity: 0; /* Hidden by default */
+  transition: var(--transition);
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shift-card:hover .shift-card-delete-btn {
+  opacity: 1; /* Show on hover */
+}
+
+.shift-card-delete-btn:hover {
+  color: var(--danger);
+  background-color: var(--danger-light);
 }
 
 .shift-card-body {
@@ -1278,7 +1328,7 @@ input[type="text"]:focus {
 }
 
 
-/* DYNAMIC MULTIPLE AUTOCOMPLETE ROWS (Point 2) */
+/* DYNAMIC MULTIPLE AUTOCOMPLETE ROWS */
 .people-inputs-container {
   display: flex;
   flex-direction: column;
@@ -1372,7 +1422,7 @@ input[type="text"]:focus {
 }
 
 
-/* COMPACT PRESET MANAGEMENT WITH INLINE DELETION AND FORM (Point 4) */
+/* COMPACT PRESET COLUMNS WITH DIRECT DELETION "X" IN CORNERS (Point 2) */
 .presets-interface-container {
   display: flex;
   flex-direction: column;
@@ -1383,10 +1433,21 @@ input[type="text"]:focus {
   padding: 16px;
 }
 
+.quick-select-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 columns grid for presets */
+  gap: 10px;
+}
+
+@media (max-width: 500px) {
+  .quick-select-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .preset-wrapper {
   position: relative;
-  display: flex;
-  align-items: stretch;
+  display: block; /* Card style block */
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background-color: #ffffff;
@@ -1406,11 +1467,12 @@ input[type="text"]:focus {
 }
 
 .preset-btn {
-  flex-grow: 1;
+  width: 100%;
   background: transparent;
   border: none;
   border-radius: 0;
   padding: 10px 12px;
+  padding-right: 24px; /* leave space for absolutely positioned X in corner */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1435,22 +1497,26 @@ input[type="text"]:focus {
   color: var(--text-muted);
 }
 
+/* Absolute Delete "X" in top-right corner of card (Point 2) */
 .preset-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
   background: transparent;
   border: none;
-  border-left: 1px solid var(--border-color);
   color: var(--text-light);
-  padding: 0 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  border-radius: 50%;
   transition: var(--transition);
-}
-
-.preset-wrapper.active .preset-delete-btn {
-  border-left-color: var(--primary-border);
+  z-index: 5;
 }
 
 .preset-delete-btn:hover {
@@ -1495,7 +1561,7 @@ input[type="text"]:focus {
 }
 
 
-/* UNRECOGNIZED NAMES INTERACTIVE DIALOG (Point 3) */
+/* UNRECOGNIZED NAMES INTERACTIVE DIALOG */
 .unrecognized-panel {
   animation: fade-in 0.25s ease forwards;
 }
@@ -1549,34 +1615,22 @@ input[type="text"]:focus {
 }
 
 
-/* MODAL FOOTER BUTTONS */
+/* MODAL FOOTER BUTTONS (Point 7: Aligned 3-column row) */
 .modal-footer {
   margin-top: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   border-top: 1px solid var(--border-color);
   padding-top: 20px;
 }
 
-.modal-footer-top {
+.modal-footer-row {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  width: 100%;
 }
 
-.modal-footer-top .btn {
+.modal-footer-row .btn {
   flex: 1;
-}
-
-.modal-footer-bottom {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.modal-footer-bottom .btn-danger-outline {
-  font-size: 13px;
-  padding: 8px 14px;
+  height: 42px;
 }
 
 

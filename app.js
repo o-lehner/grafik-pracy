@@ -1,9 +1,11 @@
 /*
-  Grafik Pracy BLDSRV - Application Logic (V3)
+  Grafik Pracy BLDSRV - Application Logic (V4)
   Implements advanced state management, LocalStorage persistence,
-  dynamic autocomplete stack, preset management, category blocks,
+  dynamic autocomplete stack, preset columns, category blocks,
   unrecognized name interactive workflows, collaborator tracking,
-  and a 200-action Undo/Redo engine (Point 1).
+  and a 200-action Undo/Redo engine.
+  V4 updates: time auto-formatting, direct card deletion, 3-column modal footer,
+  global modal Enter-save, cursor placement fixes, and adjusted deletion prompts.
 */
 
 // --- INITIAL DATA SEEDING ---
@@ -72,13 +74,12 @@ let state = {
   pendingSaveCallback: null
 };
 
-// --- UNDO / REDO SYSTEM (Point 1: 200 actions) ---
+// --- UNDO / REDO SYSTEM (200 actions) ---
 let undoStack = [];
 let redoStack = [];
 const MAX_HISTORY = 200;
 
 function recordAction() {
-  // Capture a deep clone of structural state
   const snapshot = JSON.stringify({
     employees: state.employees,
     categories: state.categories,
@@ -86,17 +87,15 @@ function recordAction() {
     presets: state.presets
   });
   
-  // Do not record if identical to the top of the stack
   if (undoStack.length > 0 && undoStack[undoStack.length - 1] === snapshot) {
     return;
   }
   
   undoStack.push(snapshot);
   if (undoStack.length > MAX_HISTORY) {
-    undoStack.shift(); // keep last 200
+    undoStack.shift();
   }
   
-  // Clear redo stack on new actions
   redoStack = [];
   updateUndoRedoButtons();
 }
@@ -104,7 +103,6 @@ function recordAction() {
 function undo() {
   if (undoStack.length === 0) return;
   
-  // Push current state to redo stack
   const currentSnapshot = JSON.stringify({
     employees: state.employees,
     categories: state.categories,
@@ -113,7 +111,6 @@ function undo() {
   });
   redoStack.push(currentSnapshot);
   
-  // Pop and apply previous state
   const prevSnapshot = JSON.parse(undoStack.pop());
   state.employees = prevSnapshot.employees;
   state.categories = prevSnapshot.categories;
@@ -122,7 +119,6 @@ function undo() {
   
   saveStateToStorage();
   
-  // Sync active profile in case it was reverted
   const exists = state.employees.some(e => e.id === state.currentProfileId);
   if (!exists) {
     const admin = state.employees.find(e => e.role === 'Administrator');
@@ -130,7 +126,6 @@ function undo() {
     localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
   }
   
-  // Refresh UI
   populateProfileDropdown();
   updateRoleMode();
   renderActiveView();
@@ -142,7 +137,6 @@ function undo() {
 function redo() {
   if (redoStack.length === 0) return;
   
-  // Push current state to undo stack
   const currentSnapshot = JSON.stringify({
     employees: state.employees,
     categories: state.categories,
@@ -154,7 +148,6 @@ function redo() {
     undoStack.shift();
   }
   
-  // Pop and apply next state
   const nextSnapshot = JSON.parse(redoStack.pop());
   state.employees = nextSnapshot.employees;
   state.categories = nextSnapshot.categories;
@@ -163,7 +156,6 @@ function redo() {
   
   saveStateToStorage();
   
-  // Sync active profile
   const exists = state.employees.some(e => e.id === state.currentProfileId);
   if (!exists) {
     const admin = state.employees.find(e => e.role === 'Administrator');
@@ -171,7 +163,6 @@ function redo() {
     localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
   }
   
-  // Refresh UI
   populateProfileDropdown();
   updateRoleMode();
   renderActiveView();
@@ -190,19 +181,14 @@ function updateUndoRedoButtons() {
 
 // --- INITIALIZATION ---
 function initApp() {
-  // Load from localStorage or seed defaults
   state.employees = JSON.parse(localStorage.getItem('bldsrv_employees')) || DEFAULT_EMPLOYEES;
   state.categories = JSON.parse(localStorage.getItem('bldsrv_categories')) || DEFAULT_CATEGORIES;
   state.shifts = JSON.parse(localStorage.getItem('bldsrv_shifts')) || DEFAULT_SHIFTS;
   state.presets = JSON.parse(localStorage.getItem('bldsrv_presets')) || DEFAULT_PRESETS;
   
-  // Perform naming migration for existing data
   migrateOldNaming();
-
-  // Save back to storage
   saveStateToStorage();
 
-  // Set default current profile
   const savedProfileId = localStorage.getItem('bldsrv_active_profile');
   const exists = state.employees.some(e => e.id === savedProfileId);
   if (savedProfileId && exists) {
@@ -213,20 +199,14 @@ function initApp() {
     localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
   }
 
-  // Setup Event Listeners
   setupEventListeners();
-  
-  // Render Everything
   populateProfileDropdown();
   updateRoleMode();
   renderTabs();
   renderActiveView();
-  
-  // Sync undo/redo buttons status initially
   updateUndoRedoButtons();
 }
 
-// --- MIGRATION: Nadzorca/Pracownik -> Administrator/Osoba ---
 function migrateOldNaming() {
   let changed = false;
   state.employees.forEach(emp => {
@@ -243,7 +223,6 @@ function migrateOldNaming() {
   }
 }
 
-// --- STATE SAVING ---
 function saveStateToStorage() {
   localStorage.setItem('bldsrv_employees', JSON.stringify(state.employees));
   localStorage.setItem('bldsrv_categories', JSON.stringify(state.categories));
@@ -251,12 +230,10 @@ function saveStateToStorage() {
   localStorage.setItem('bldsrv_presets', JSON.stringify(state.presets));
 }
 
-// --- HELPER: GET CURRENT PROFILE ---
 function getCurrentProfile() {
   return state.employees.find(e => e.id === state.currentProfileId) || state.employees[0];
 }
 
-// --- UPDATE ROLE CAPABILITIES (Admin vs Osoba) ---
 function updateRoleMode() {
   const profile = getCurrentProfile();
   const body = document.body;
@@ -270,25 +247,22 @@ function updateRoleMode() {
     body.classList.add('app-mode-administrator');
     tabManageTeamBtn.classList.remove('hidden');
     adminScheduleControls.classList.remove('hidden');
-    undoRedoHeader.classList.remove('hidden'); // Show Undo/Redo to Admins
+    undoRedoHeader.classList.remove('hidden');
   } else {
     body.classList.remove('app-mode-administrator');
     tabManageTeamBtn.classList.add('hidden');
     adminScheduleControls.classList.add('hidden');
-    undoRedoHeader.classList.add('hidden'); // Hide Undo/Redo from regular employees
+    undoRedoHeader.classList.add('hidden');
     
-    // Hide inline category adding container
     document.getElementById('addCategoryFormContainer').classList.add('hidden');
     document.getElementById('btnShowAddCategory').classList.remove('hidden');
     
-    // Redirect if on forbidden tab
     if (state.activeTab === 'manage-team') {
       switchTab('full-schedule');
     }
   }
 }
 
-// --- POPULATE HEADER PROFILE DROPDOWN ---
 function populateProfileDropdown() {
   const select = document.getElementById('profileSelect');
   select.innerHTML = '';
@@ -304,7 +278,6 @@ function populateProfileDropdown() {
   });
 }
 
-// --- TAB ROUTING ---
 function switchTab(tabId) {
   state.activeTab = tabId;
   renderTabs();
@@ -322,7 +295,6 @@ function renderTabs() {
     }
   });
 
-  // Toggle content section visibility
   const sections = {
     'my-tasks': document.getElementById('contentMyTasks'),
     'full-schedule': document.getElementById('contentFullSchedule'),
@@ -348,17 +320,15 @@ function renderActiveView() {
   }
 }
 
-// --- VIEW 1: MY TASKS (PULPIT OSOBISTY) ---
+// --- VIEW 1: MY TASKS ---
 function renderMyTasksView() {
   const profile = getCurrentProfile();
   if (!profile) return;
   
-  // Set user name
   document.getElementById('myTasksUserName').textContent = profile.name;
   
-  // Determine current day of week to highlight (default to Thursday to match screenshots)
   const date = new Date();
-  let currentDayIndex = date.getDay() - 1; // 0 for Mon, 4 for Fri
+  let currentDayIndex = date.getDay() - 1; 
   if (currentDayIndex < 0 || currentDayIndex > 4) {
     currentDayIndex = 3; // default to Thursday
   }
@@ -368,8 +338,6 @@ function renderMyTasksView() {
   
   DAYS_OF_WEEK.forEach((day, index) => {
     const isToday = index === currentDayIndex;
-    
-    // Filter shifts for this user and day
     const dayShifts = state.shifts.filter(s => s.employeeId === profile.id && s.day === day);
     
     const card = document.createElement('div');
@@ -378,7 +346,7 @@ function renderMyTasksView() {
     let shiftsHtml = '';
     if (dayShifts.length > 0) {
       dayShifts.forEach(shift => {
-        // Look up coworkers for the same task and day (Point 8)
+        // Look up coworkers for the same task and day (Point 1 - Beautiful aligned layout)
         const coworkers = state.shifts.filter(s => 
           s.taskId === shift.taskId && 
           s.day === shift.day && 
@@ -435,7 +403,7 @@ function renderMyTasksView() {
   });
 }
 
-// --- VIEW 2: FULL SCHEDULE with Category Blocks (Point 5 & 7) ---
+// --- VIEW 2: FULL SCHEDULE ---
 function renderFullScheduleView() {
   const container = document.getElementById('categoriesContainer');
   container.innerHTML = '';
@@ -453,7 +421,6 @@ function renderFullScheduleView() {
     block.className = 'category-block';
     block.setAttribute('data-category-id', cat.id);
     
-    // Category Header
     let deleteCategoryBtn = '';
     if (isAdmin) {
       deleteCategoryBtn = `
@@ -473,16 +440,6 @@ function renderFullScheduleView() {
       </div>
     `;
     
-    // Category Table
-    let rowsHtml = '';
-    if (cat.tasks.length === 0) {
-      rowsHtml = `
-        <tr>
-          <td colspan="6" class="no-tasks-text" style="text-align: center;">Brak zadań w tej kategorii.</td>
-        </tr>
-      `;
-    }
-    
     let tableHtml = `
       <div class="schedule-table-wrapper">
         <table class="schedule-table">
@@ -497,13 +454,12 @@ function renderFullScheduleView() {
             </tr>
           </thead>
           <tbody class="category-table-body" data-category-id="${cat.id}">
-            <!-- Task rows loaded dynamically -->
+            <!-- Task rows -->
           </tbody>
         </table>
       </div>
     `;
     
-    // Category Footer for Admin (Inline add task)
     let footerHtml = '';
     if (isAdmin) {
       footerHtml = `
@@ -525,14 +481,12 @@ function renderFullScheduleView() {
     block.innerHTML = headerHtml + tableHtml + footerHtml;
     container.appendChild(block);
     
-    // Render the task rows for this category
     const tbody = block.querySelector('.category-table-body');
     tbody.innerHTML = '';
     
     cat.tasks.forEach(task => {
       const tr = document.createElement('tr');
       
-      // Task Name cell with optional delete button for Admin
       const tdTask = document.createElement('td');
       tdTask.className = 'cell-task-name';
       
@@ -556,7 +510,6 @@ function renderFullScheduleView() {
       `;
       tr.appendChild(tdTask);
       
-      // Day Cells
       DAYS_OF_WEEK.forEach(day => {
         const tdDay = document.createElement('td');
         tdDay.className = 'cell-day';
@@ -576,6 +529,16 @@ function renderFullScheduleView() {
           const emp = state.employees.find(e => e.id === shift.employeeId);
           const empName = emp ? emp.name : 'Nieznana osoba';
           
+          // Hover-triggered card delete button (Point 6)
+          let deleteCardBtn = '';
+          if (isAdmin) {
+            deleteCardBtn = `
+              <button class="shift-card-delete-btn" title="Usuń dyżur z grafiku">
+                &times;
+              </button>
+            `;
+          }
+          
           const card = document.createElement('div');
           card.className = 'shift-card';
           card.setAttribute('data-shift-id', shift.id);
@@ -583,6 +546,7 @@ function renderFullScheduleView() {
             <div class="shift-card-header">
               <span class="status-dot"></span>
               <span class="employee-name">${empName}</span>
+              ${deleteCardBtn}
             </div>
             <div class="shift-card-body">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -596,17 +560,29 @@ function renderFullScheduleView() {
           // Click on shift card to edit (Admin only)
           card.addEventListener('click', (e) => {
             if (isAdmin) {
-              e.stopPropagation(); // prevent tdDay click
+              e.stopPropagation(); 
               openAssignModal(task, day, shift.id);
             }
           });
+          
+          // Bind direct delete card button click (Point 6 & 9: instantly without double prompt)
+          if (isAdmin && deleteCardBtn !== '') {
+            const cardDelBtn = card.querySelector('.shift-card-delete-btn');
+            cardDelBtn.addEventListener('click', (e) => {
+              e.stopPropagation(); // prevent modal
+              recordAction();
+              state.shifts = state.shifts.filter(s => s.id !== shift.id);
+              saveStateToStorage();
+              renderFullScheduleView();
+              showToast('Usunięto dyżur z grafiku');
+            });
+          }
           
           shiftsContainer.appendChild(card);
         });
         
         tdDay.appendChild(shiftsContainer);
         
-        // Click cell to assign (Admin only)
         tdDay.addEventListener('click', () => {
           if (isAdmin) {
             openAssignModal(task, day);
@@ -619,7 +595,6 @@ function renderFullScheduleView() {
       tbody.appendChild(tr);
     });
     
-    // Add event listener to input fields in category footer for Enter keypress
     if (isAdmin) {
       const taskInput = block.querySelector('.input-new-task');
       taskInput.addEventListener('keydown', (e) => {
@@ -631,7 +606,7 @@ function renderFullScheduleView() {
   });
 }
 
-// --- CATEGORIES & TASKS ACTIONS ---
+// --- CATEGORIES & TASKS ACTIONS (Point 10: keep prompts for categories and tasks) ---
 function handleAddTask(categoryId) {
   const block = document.querySelector(`.category-block[data-category-id="${categoryId}"]`);
   const input = block.querySelector('.input-new-task');
@@ -639,21 +614,16 @@ function handleAddTask(categoryId) {
   
   if (!taskName) return;
   
-  // Find category
   const catIndex = state.categories.findIndex(c => c.id === categoryId);
   if (catIndex === -1) return;
   
-  // Check if task already exists in any category
   const exists = state.categories.some(c => c.tasks.some(t => t.toLowerCase() === taskName.toLowerCase()));
   if (exists) {
     showToast('Zadanie o tej nazwie już istnieje w grafiku', 'danger');
     return;
   }
   
-  // Record action for undo/redo
   recordAction();
-  
-  // Add task to category
   state.categories[catIndex].tasks.push(taskName);
   saveStateToStorage();
   renderFullScheduleView();
@@ -670,13 +640,8 @@ function deleteTask(categoryId, taskName) {
   const catIndex = state.categories.findIndex(c => c.id === categoryId);
   if (catIndex === -1) return;
   
-  // Record action
   recordAction();
-  
-  // Remove task from category
   state.categories[catIndex].tasks = state.categories[catIndex].tasks.filter(t => t !== taskName);
-  
-  // Remove shifts associated with this task
   state.shifts = state.shifts.filter(s => s.taskId !== taskName);
   
   saveStateToStorage();
@@ -688,16 +653,13 @@ function addCategory(name) {
   const cleanName = name.trim();
   if (!cleanName) return;
   
-  // Check if category name exists
   const exists = state.categories.some(c => c.name.toLowerCase() === cleanName.toLowerCase());
   if (exists) {
     showToast('Kategoria o tej nazwie już istnieje', 'danger');
     return;
   }
   
-  // Record action
   recordAction();
-  
   const newCat = {
     id: 'cat-' + Date.now(),
     name: cleanName,
@@ -718,15 +680,10 @@ function deleteCategory(categoryId) {
     return;
   }
   
-  // Record action
   recordAction();
-  
-  // Remove shifts for all tasks in this category
   cat.tasks.forEach(taskName => {
     state.shifts = state.shifts.filter(s => s.taskId !== taskName);
   });
-  
-  // Remove category
   state.categories = state.categories.filter(c => c.id !== categoryId);
   
   saveStateToStorage();
@@ -734,7 +691,7 @@ function deleteCategory(categoryId) {
   showToast(`Usunięto kategorię "${cat.name}"`);
 }
 
-// --- VIEW 3: TEAM MANAGEMENT (ZARZĄDZANIE ZESPOŁEM) ---
+// --- VIEW 3: TEAM MANAGEMENT ---
 function renderTeamManagementView() {
   document.getElementById('membersCount').textContent = state.employees.length;
   
@@ -755,12 +712,10 @@ function renderTeamManagementView() {
     const item = document.createElement('div');
     item.className = 'member-item';
     
-    // Avatar initials
     const initials = emp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     const roleClass = emp.role === 'Administrator' ? 'role-administrator' : 'role-osoba';
     const badgeClass = emp.role === 'Administrator' ? 'badge-administrator' : 'badge-osoba';
     
-    // Safe role controls (Point 4: Admin cannot change their own role or delete themselves)
     const isActiveProfile = emp.id === state.currentProfileId;
     const isDisabled = isActiveProfile && emp.role === 'Administrator';
     
@@ -789,8 +744,6 @@ function renderTeamManagementView() {
       </button>
     `;
     
-    // Toggle role (only if not disabled)
-    const badge = item.querySelector('.role-badge');
     badge.addEventListener('click', (e) => {
       e.stopPropagation();
       if (isDisabled) {
@@ -800,7 +753,6 @@ function renderTeamManagementView() {
       toggleEmployeeRole(emp.id);
     });
     
-    // Delete member (only if not disabled)
     const deleteBtn = item.querySelector('.btn-delete-member');
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -815,7 +767,6 @@ function renderTeamManagementView() {
   });
 }
 
-// --- ACTIONS: TEAM MANAGEMENT ---
 function toggleEmployeeRole(empId) {
   const empIndex = state.employees.findIndex(e => e.id === empId);
   if (empIndex === -1) return;
@@ -823,16 +774,13 @@ function toggleEmployeeRole(empId) {
   const oldRole = state.employees[empIndex].role;
   const newRole = oldRole === 'Administrator' ? 'Osoba' : 'Administrator';
   
-  // Safe role check: double check to make sure at least one administrator is left
   const admins = state.employees.filter(e => e.role === 'Administrator');
   if (oldRole === 'Administrator' && admins.length === 1) {
     showToast('W systemie musi pozostać przynajmniej jeden Administrator', 'danger');
     return;
   }
   
-  // Record action
   recordAction();
-  
   state.employees[empIndex].role = newRole;
   saveStateToStorage();
   
@@ -844,6 +792,7 @@ function toggleEmployeeRole(empId) {
   showToast(`Zmieniono rolę użytkownika ${state.employees[empIndex].name} na ${newRole}`);
 }
 
+// Point 9: delete employee instantly without double confirmation prompt
 function deleteEmployee(empId) {
   const empIndex = state.employees.findIndex(e => e.id === empId);
   if (empIndex === -1) return;
@@ -851,36 +800,29 @@ function deleteEmployee(empId) {
   const empName = state.employees[empIndex].name;
   const empRole = state.employees[empIndex].role;
   
-  // Safe check
   const admins = state.employees.filter(e => e.role === 'Administrator');
   if (empRole === 'Administrator' && admins.length === 1) {
     showToast('Nie można usunąć jedynego Administratora w systemie', 'danger');
     return;
   }
   
-  if (confirm(`Czy na pewno chcesz usunąć ${empName} z zespołu? Usunięte zostaną również wszystkie powiązane dyżury.`)) {
-    // Record action
-    recordAction();
-    
-    state.employees.splice(empIndex, 1);
-    state.shifts = state.shifts.filter(s => s.employeeId !== empId);
-    
-    // Switch active profile if we deleted the current one
-    if (state.currentProfileId === empId) {
-      const replacement = state.employees.find(e => e.role === 'Administrator') || state.employees[0];
-      state.currentProfileId = replacement ? replacement.id : '';
-      localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
-    }
-    
-    saveStateToStorage();
-    
-    populateProfileDropdown();
-    updateRoleMode();
-    renderTeamManagementView();
-    renderFullScheduleView();
-    
-    showToast(`Usunięto ${empName} z zespołu`);
+  recordAction();
+  state.employees.splice(empIndex, 1);
+  state.shifts = state.shifts.filter(s => s.employeeId !== empId);
+  
+  if (state.currentProfileId === empId) {
+    const replacement = state.employees.find(e => e.role === 'Administrator') || state.employees[0];
+    state.currentProfileId = replacement ? replacement.id : '';
+    localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
   }
+  
+  saveStateToStorage();
+  populateProfileDropdown();
+  updateRoleMode();
+  renderTeamManagementView();
+  renderFullScheduleView();
+  
+  showToast(`Usunięto ${empName} z zespołu`);
 }
 
 // --- SHIFT ASSIGNMENT MODAL LOGIC ---
@@ -897,54 +839,41 @@ function openAssignModal(task, day, shiftId = null) {
   const mainContent = document.getElementById('modalMainContent');
   const unrecognizedPanel = document.getElementById('unrecognizedNamesPanel');
   
-  // Ensure we display main form and hide unrecognized panels on open
   mainContent.classList.remove('hidden');
   unrecognizedPanel.classList.add('hidden');
   
-  // Set subtitle task and day
   titleTask.textContent = task;
   titleDay.textContent = day;
   
-  // Setup modal people names array
   if (shiftId) {
-    // Edit Mode - single shift card
     const shift = state.shifts.find(s => s.id === shiftId);
     if (shift) {
       const emp = state.employees.find(e => e.id === shift.employeeId);
       state.modalPeople = [emp ? emp.name : ''];
       inputTime.value = shift.time;
-      deleteBtn.classList.remove('hidden');
+      deleteBtn.classList.remove('hidden'); // Show delete (Point 7)
     }
   } else {
-    // Create Mode - empty slate
     state.modalPeople = [''];
-    inputTime.value = '08:00–12:00'; // Default
-    deleteBtn.classList.add('hidden');
+    inputTime.value = '08:00–12:00'; 
+    deleteBtn.classList.add('hidden'); // Hide delete (Point 7)
   }
   
-  // Render autocomplete name inputs
   renderPeopleInputs();
-  
-  // Render quick presets
   renderPresetButtons();
-  
-  // Highlight active preset button if match
   syncPresetHighlight(inputTime.value);
   
-  // Open modal with transitions
   modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden'; // Lock scrolling
+  document.body.style.overflow = 'hidden'; 
   
-  // Focus the first name input
   focusPeopleInputRow(0);
 }
 
 function closeAssignModal() {
   const modal = document.getElementById('assignModal');
   modal.classList.add('hidden');
-  document.body.style.overflow = ''; // Unlock scrolling
+  document.body.style.overflow = ''; 
   
-  // Reset state
   state.editingShiftId = null;
   state.activeCellTask = null;
   state.activeCellDay = null;
@@ -953,7 +882,7 @@ function closeAssignModal() {
   state.pendingSaveCallback = null;
 }
 
-// --- RENDER DYNAMIC AUTOCOMPLETE INPUTS (Point 2 & 3) ---
+// --- RENDER DYNAMIC AUTOCOMPLETE INPUTS (Point 3 & 4 fixed) ---
 function renderPeopleInputs() {
   const container = document.getElementById('modalPeopleInputsContainer');
   container.innerHTML = '';
@@ -963,7 +892,6 @@ function renderPeopleInputs() {
     row.className = 'autocomplete-row';
     row.setAttribute('data-index', index);
     
-    // Close row button if multiple
     let removeBtnHtml = '';
     if (state.modalPeople.length > 1) {
       removeBtnHtml = `
@@ -984,26 +912,22 @@ function renderPeopleInputs() {
     
     container.appendChild(row);
     
-    // Input elements
     const input = row.querySelector('.modal-person-input');
     const dropdown = row.querySelector('.suggestions-dropdown');
     
-    // Bind Key and Input Events for Autocomplete and Nav
     input.addEventListener('input', (e) => {
       let val = e.target.value;
       
-      // Fallback for Comma handling (Point 2: triggers when comma is entered in input)
+      // Comma handling
       if (val.endsWith(',')) {
-        val = val.slice(0, -1); // strip comma
+        val = val.slice(0, -1); 
         
-        // Autocomplete with highlighted suggestion if open
         let chosenName = val.trim();
         const suggestions = dropdown.querySelectorAll('.suggestion-item');
         if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
           chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
         }
         
-        // Complete current row and append a new one
         state.modalPeople[index] = chosenName;
         state.modalPeople.push('');
         renderPeopleInputs();
@@ -1036,19 +960,15 @@ function renderPeopleInputs() {
       else if (e.key === 'Enter') {
         e.preventDefault();
         
-        // Point 3: Enter autocompletes but KEEPS focus in current input
+        // Point 3 & 4: Enter autocompletes, closes dropdown, and KEEPS focus in current input
         if (!dropdown.classList.contains('hidden')) {
           if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
             const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
-            state.modalPeople[index] = selectedName;
-            renderPeopleInputs();
-            // Focus remains on this row so they can type comma next
-            focusPeopleInputRow(index);
+            selectAutocompleteSuggestion(index, selectedName);
           }
         } else {
-          // Dropdown is already closed: press Enter again to move focus
+          // Dropdown is already closed: press Enter a second time to move focus
           if (val.trim() !== '') {
-            // Move to next input or to time input
             if (index < state.modalPeople.length - 1) {
               focusPeopleInputRow(index + 1);
             } else {
@@ -1058,15 +978,13 @@ function renderPeopleInputs() {
         }
       }
       else if (e.key === ',') {
-        e.preventDefault(); // prevent comma char
+        e.preventDefault(); 
         
-        // Autocomplete with highlighted suggestion if open
         let chosenName = val.trim();
         if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
           chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
         }
         
-        // Complete current row and append a new one (Point 2)
         state.modalPeople[index] = chosenName;
         state.modalPeople.push('');
         renderPeopleInputs();
@@ -1074,14 +992,12 @@ function renderPeopleInputs() {
       }
     });
     
-    // Handle clicking outside to close suggestions
     input.addEventListener('focus', () => {
       if (input.value.trim() !== '') {
         showAutocompleteSuggestions(index, input.value);
       }
     });
     
-    // Close dropdown on delay so click events on suggestions can process
     input.addEventListener('blur', () => {
       setTimeout(() => {
         dropdown.classList.add('hidden');
@@ -1094,14 +1010,18 @@ function focusPeopleInputRow(index) {
   const rows = document.querySelectorAll('.autocomplete-row');
   if (rows[index]) {
     const input = rows[index].querySelector('.modal-person-input');
-    if (input) input.focus();
+    if (input) {
+      input.focus();
+      // Point 3: Explicitly place cursor at the very end of the text
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    }
   }
 }
 
 function removePeopleInputRow(index) {
   state.modalPeople.splice(index, 1);
   renderPeopleInputs();
-  // Focus the last remaining input row
   focusPeopleInputRow(state.modalPeople.length - 1);
 }
 
@@ -1118,7 +1038,6 @@ function showAutocompleteSuggestions(index, query) {
     return;
   }
   
-  // Filter team members based on typed text
   const matches = state.employees.filter(emp => 
     emp.name.toLowerCase().includes(cleanQuery)
   );
@@ -1131,7 +1050,7 @@ function showAutocompleteSuggestions(index, query) {
   }
   
   dropdown.innerHTML = '';
-  state.activeSuggestionIndex = 0; // Default highlight the first option
+  state.activeSuggestionIndex = 0; 
   
   matches.forEach((emp, sIndex) => {
     const div = document.createElement('div');
@@ -1147,7 +1066,7 @@ function showAutocompleteSuggestions(index, query) {
     `;
     
     div.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // prevent blur
+      e.preventDefault(); 
       selectAutocompleteSuggestion(index, emp.name);
     });
     
@@ -1169,14 +1088,31 @@ function highlightSuggestion(dropdown) {
   });
 }
 
+// Point 3 & 4: Direct DOM manipulation to avoid re-rendering and preserve focus & key handlers
 function selectAutocompleteSuggestion(index, name) {
   state.modalPeople[index] = name;
-  renderPeopleInputs();
-  // Focus remains in the input (Point 3)
-  focusPeopleInputRow(index);
+  
+  const row = document.querySelector(`.autocomplete-row[data-index="${index}"]`);
+  if (row) {
+    const input = row.querySelector('.modal-person-input');
+    const dropdown = row.querySelector('.suggestions-dropdown');
+    
+    if (input) {
+      input.value = name;
+      input.focus();
+      // Force cursor to the end
+      const len = name.length;
+      input.setSelectionRange(len, len);
+    }
+    
+    if (dropdown) {
+      dropdown.innerHTML = '';
+      dropdown.classList.add('hidden');
+    }
+  }
 }
 
-// --- RENDER COMPACT PRESETS with inline deletion (Point 4) ---
+// --- RENDER COMPACT PRESETS with inline deletion (Point 2 & 4) ---
 function renderPresetButtons() {
   const grid = document.getElementById('quickSelectGrid');
   grid.innerHTML = '';
@@ -1185,7 +1121,6 @@ function renderPresetButtons() {
     const wrapper = document.createElement('div');
     wrapper.className = 'preset-wrapper';
     
-    // Select button
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'preset-btn';
@@ -1196,7 +1131,6 @@ function renderPresetButtons() {
       <span class="preset-value">${p.time}</span>
     `;
     
-    // Delete button next to it (Point 4)
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'preset-delete-btn';
@@ -1204,7 +1138,7 @@ function renderPresetButtons() {
     delBtn.title = 'Usuń szablon';
     
     delBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // prevent triggering selection
+      e.stopPropagation(); 
       deletePreset(index);
     });
     
@@ -1213,7 +1147,6 @@ function renderPresetButtons() {
     grid.appendChild(wrapper);
   });
   
-  // Resync active selection highlights
   syncPresetHighlight(document.getElementById('modalTimeInput').value);
 }
 
@@ -1230,41 +1163,36 @@ function syncPresetHighlight(timeString) {
   });
 }
 
-// --- ACTIONS: PRESETS (Point 4) ---
+// --- ACTIONS: PRESETS ---
 function addPreset() {
   const labelInput = document.getElementById('newPresetLabel');
   const timeInput = document.getElementById('newPresetTime');
   
   const label = labelInput.value.trim();
-  const time = timeInput.value.trim();
+  const rawTime = timeInput.value.trim();
   
-  if (!label || !time) {
+  if (!label || !rawTime) {
     showToast('Wypełnij oba pola szablonu (Etykieta i Godziny)', 'danger');
     return;
   }
   
-  // Record action
-  recordAction();
+  // Format the time input (Point 5)
+  const time = parseAndFormatTime(rawTime);
   
-  // Add to state
+  recordAction();
   state.presets.push({ label, time });
   saveStateToStorage();
   
-  // Clear inputs
   labelInput.value = '';
   timeInput.value = '';
   
-  // Re-render
   renderPresetButtons();
   showToast(`Dodano szablon "${label}"`);
 }
 
 function deletePreset(index) {
   const p = state.presets[index];
-  
-  // Record action
   recordAction();
-  
   state.presets.splice(index, 1);
   saveStateToStorage();
   
@@ -1272,11 +1200,65 @@ function deletePreset(index) {
   showToast(`Usunięto szablon "${p.label}"`);
 }
 
+// --- SMART TIME FORMATTING PARSER (Point 5) ---
+function parseAndFormatTime(str) {
+  const clean = str.trim();
+  if (!clean) return '';
+  
+  if (clean.toLowerCase() === '1h') return '1h';
+  if (clean.toLowerCase() === '2h') return '2h';
+  
+  // Split by range separators: dash, en-dash, spaces, "do", "to"
+  const parts = clean.split(/[-–—\s]|do|to/i).filter(p => p.trim() !== '');
+  if (parts.length < 2) {
+    // Fallbacks for typing numbers without spaces, e.g. "0812" -> "08 12"
+    const digits = clean.replace(/\D/g, '');
+    if (digits.length === 6) {
+      return parseAndFormatTime(`${digits.substring(0, 3)} ${digits.substring(3)}`);
+    }
+    if (digits.length === 8) {
+      return parseAndFormatTime(`${digits.substring(0, 4)} ${digits.substring(4)}`);
+    }
+    if (digits.length === 4 && !clean.includes(':')) {
+      return parseAndFormatTime(`${digits.substring(0, 2)} ${digits.substring(2)}`);
+    }
+    return clean;
+  }
+  
+  const formatPart = (part) => {
+    const p = part.trim();
+    if (p.includes(':')) {
+      const subparts = p.split(':');
+      const h = subparts[0].padStart(2, '0');
+      const m = subparts[1].padStart(2, '0');
+      return `${h}:${m}`;
+    }
+    
+    const digits = p.replace(/\D/g, '');
+    if (digits.length === 1) {
+      return `0${digits}:00`;
+    } else if (digits.length === 2) {
+      return `${digits.padStart(2, '0')}:00`;
+    } else if (digits.length === 3) {
+      return `0${digits[0]}:${digits.substring(1)}`;
+    } else if (digits.length === 4) {
+      return `${digits.substring(0, 2)}:${digits.substring(2)}`;
+    }
+    return p;
+  };
+  
+  const start = formatPart(parts[0]);
+  const end = formatPart(parts[parts.length - 1]);
+  
+  return `${start}–${end}`;
+}
 
-// --- SAVE SHIFT LOGIC ---
+
+// --- SAVE SHIFT ---
 function saveShift(closeAfter = true) {
   const timeInput = document.getElementById('modalTimeInput');
-  const time = timeInput.value.trim();
+  // Format the time input before saving (Point 5)
+  const time = parseAndFormatTime(timeInput.value.trim());
   
   if (!time) {
     showToast('Podaj godziny pracy', 'danger');
@@ -1292,7 +1274,6 @@ function saveShift(closeAfter = true) {
     return false;
   }
   
-  // Check if any names are not in the team database (Point 3)
   const unrecognized = [];
   names.forEach(name => {
     const exists = state.employees.some(emp => emp.name.toLowerCase() === name.toLowerCase());
@@ -1302,7 +1283,6 @@ function saveShift(closeAfter = true) {
   });
   
   if (unrecognized.length > 0) {
-    // Pause save, launch unrecognized names workflow (Point 3)
     state.unrecognizedNames = unrecognized;
     state.pendingSaveCallback = () => executeSave(names, time, closeAfter);
     openUnrecognizedNamesPanel();
@@ -1313,17 +1293,14 @@ function saveShift(closeAfter = true) {
 }
 
 function executeSave(names, time, closeAfter) {
-  // Record action for undo/redo
   recordAction();
   
-  // Map names to employee IDs
   const employeeIds = names.map(name => {
     const emp = state.employees.find(e => e.name.toLowerCase() === name.toLowerCase());
     return emp.id;
   });
   
   if (state.editingShiftId) {
-    // Edit Mode - single shift update
     const shiftIndex = state.shifts.findIndex(s => s.id === state.editingShiftId);
     if (shiftIndex !== -1) {
       state.shifts[shiftIndex].employeeId = employeeIds[0];
@@ -1331,7 +1308,6 @@ function executeSave(names, time, closeAfter) {
     }
     showToast('Zaktualizowano zmianę pomyślnie');
   } else {
-    // Create Mode - create shifts for each entered person in the cell
     employeeIds.forEach(empId => {
       const duplicate = state.shifts.some(s => 
         s.taskId === state.activeCellTask && 
@@ -1363,7 +1339,7 @@ function executeSave(names, time, closeAfter) {
   return true;
 }
 
-// --- UNRECOGNIZED NAMES INTERACTIVE PANEL (Point 3) ---
+// --- UNRECOGNIZED NAMES INTERACTIVE PANEL ---
 function openUnrecognizedNamesPanel() {
   const mainContent = document.getElementById('modalMainContent');
   const unrecognizedPanel = document.getElementById('unrecognizedNamesPanel');
@@ -1412,10 +1388,8 @@ function renderUnrecognizedNamesList() {
 }
 
 function handleAddUnrecognizedMember(name, role) {
-  // Record action for undo/redo
   recordAction();
   
-  // Create member in database
   const newEmp = {
     id: 'emp-' + Date.now() + '-' + Math.floor(Math.random() * 100),
     name: name,
@@ -1425,11 +1399,9 @@ function handleAddUnrecognizedMember(name, role) {
   state.employees.push(newEmp);
   saveStateToStorage();
   
-  // Sync UI
   populateProfileDropdown();
   updateRoleMode();
   
-  // Remove from unrecognized list
   state.unrecognizedNames = state.unrecognizedNames.filter(n => n !== name);
   showToast(`Dodano "${name}" do zespołu jako ${role}`);
   
@@ -1445,7 +1417,6 @@ function handleAddUnrecognizedMember(name, role) {
 function handleCorrectUnrecognizedName(name) {
   closeUnrecognizedNamesPanel();
   
-  // Find which input had this name and focus it
   const inputRows = document.querySelectorAll('.autocomplete-row');
   inputRows.forEach(row => {
     const input = row.querySelector('.modal-person-input');
@@ -1456,34 +1427,28 @@ function handleCorrectUnrecognizedName(name) {
   });
 }
 
-// --- DELETE SHIFT ---
+// Point 9: Delete shift instantly without confirmation prompt
 function deleteActiveShift() {
   if (!state.editingShiftId) return;
   
-  if (confirm('Czy na pewno chcesz usunąć tę zmianę?')) {
-    // Record action
-    recordAction();
-    
-    state.shifts = state.shifts.filter(s => s.id !== state.editingShiftId);
-    saveStateToStorage();
-    renderFullScheduleView();
-    closeAssignModal();
-    showToast('Zmiana została usunięta');
-  }
+  recordAction();
+  state.shifts = state.shifts.filter(s => s.id !== state.editingShiftId);
+  saveStateToStorage();
+  renderFullScheduleView();
+  closeAssignModal();
+  showToast('Zmiana została usunięta');
 }
 
 // --- AUTO-SAVE ON CLICK OUTSIDE / BLUR ---
 function autoSaveAndClose() {
   const timeInput = document.getElementById('modalTimeInput');
-  const time = timeInput.value.trim();
+  const time = parseAndFormatTime(timeInput.value.trim());
   
-  // Collect entered names
   const names = state.modalPeople
     .map(n => n.trim())
     .filter(n => n !== '');
   
   if (names.length > 0 && time !== '') {
-    // Check for unrecognized names
     const unrecognized = [];
     names.forEach(name => {
       const exists = state.employees.some(emp => emp.name.toLowerCase() === name.toLowerCase());
@@ -1525,7 +1490,6 @@ function showToast(message, type = 'success') {
 
 // --- EVENT LISTENERS ---
 function setupEventListeners() {
-  // 1. Profile Switched
   const profileSelect = document.getElementById('profileSelect');
   profileSelect.addEventListener('change', (e) => {
     state.currentProfileId = e.target.value;
@@ -1537,7 +1501,6 @@ function setupEventListeners() {
     showToast(`Przełączono profil na: ${getCurrentProfile().name}`);
   });
 
-  // 2. Navigation Tabs
   const tabButtons = document.querySelectorAll('.nav-tab');
   tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1546,7 +1509,6 @@ function setupEventListeners() {
     });
   });
 
-  // 3. Add Person Form (in Team Management View)
   const addPersonForm = document.getElementById('addPersonForm');
   addPersonForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1561,9 +1523,7 @@ function setupEventListeners() {
       return;
     }
     
-    // Record action
     recordAction();
-    
     const newEmp = {
       id: 'emp-' + Date.now(),
       name: name,
@@ -1580,7 +1540,6 @@ function setupEventListeners() {
     showToast(`Dodano do zespołu: ${name}`);
   });
 
-  // 4. Role Toggle Buttons (in Add Person card)
   const roleToggleBtns = document.querySelectorAll('.role-toggle-btn');
   roleToggleBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1590,24 +1549,20 @@ function setupEventListeners() {
     });
   });
 
-  // 5. Search Members Input
   const searchInput = document.getElementById('searchMemberInput');
   searchInput.addEventListener('input', () => {
     renderTeamManagementView();
   });
 
-  // 6. Modal Close and Cancel
   document.getElementById('btnModalClose').addEventListener('click', closeAssignModal);
   document.getElementById('btnCancelShift').addEventListener('click', closeAssignModal);
   
-  // Close modal on Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !document.getElementById('assignModal').classList.contains('hidden')) {
       closeAssignModal();
     }
   });
 
-  // 7. Preset Selection inside Grid
   const presetGrid = document.getElementById('quickSelectGrid');
   presetGrid.addEventListener('click', (e) => {
     const btn = e.target.closest('.preset-btn');
@@ -1619,13 +1574,22 @@ function setupEventListeners() {
     syncPresetHighlight(timeVal);
   });
 
-  // 8. Custom Time Input Sync
   const timeInput = document.getElementById('modalTimeInput');
+  
+  // Format on blur (Point 5)
+  timeInput.addEventListener('blur', (e) => {
+    const formatted = parseAndFormatTime(e.target.value.trim());
+    if (formatted !== '') {
+      e.target.value = formatted;
+      syncPresetHighlight(formatted);
+    }
+  });
+  
   timeInput.addEventListener('input', (e) => {
+    // Highlight presets dynamically as they type
     syncPresetHighlight(e.target.value.trim());
   });
   
-  // 9. Time Input Enter keypress to submit
   timeInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1633,19 +1597,16 @@ function setupEventListeners() {
     }
   });
 
-  // 10. Save Shift Button Submit
   document.getElementById('assignForm').addEventListener('submit', (e) => {
     e.preventDefault();
     saveShift(true);
   });
 
-  // 11. Delete Shift Button
   document.getElementById('btnDeleteShift').addEventListener('click', deleteActiveShift);
 
-  // 12. Simplified Preset Add Inline Form (Point 4)
+  // Simplified Preset Add Inline Form (Point 4)
   document.getElementById('btnInlineAddPreset').addEventListener('click', addPreset);
   
-  // Support Enter keypress in inline preset inputs
   const presetInputs = [document.getElementById('newPresetLabel'), document.getElementById('newPresetTime')];
   presetInputs.forEach(inp => {
     inp.addEventListener('keydown', (e) => {
@@ -1656,7 +1617,6 @@ function setupEventListeners() {
     });
   });
 
-  // 13. Auto-save on Click Outside (detect when clicked outside modal container)
   document.addEventListener('mousedown', (e) => {
     const modal = document.getElementById('assignModal');
     const container = document.querySelector('.modal-container');
@@ -1669,7 +1629,6 @@ function setupEventListeners() {
     }
   });
 
-  // 14. Admin Schedule Controls - Add Category Block (Point 7)
   const btnShowAddCategory = document.getElementById('btnShowAddCategory');
   const btnCancelCategory = document.getElementById('btnCancelCategory');
   const addCategoryFormContainer = document.getElementById('addCategoryFormContainer');
@@ -1704,13 +1663,31 @@ function setupEventListeners() {
     }
   });
 
-  // 15. Undo and Redo Button clicks (Point 1)
   document.getElementById('btnUndo').addEventListener('click', undo);
   document.getElementById('btnRedo').addEventListener('click', redo);
   
-  // 16. Keyboard Shortcuts for Undo / Redo (Ctrl+Z / Cmd+Z, Ctrl+Y / Cmd+Y) (Point 1)
+  // Point 8: Global Enter keypress to save shift when modal is open and focus is not inside an active suggestions input
   document.addEventListener('keydown', (e) => {
-    // Check if focused element is a text input - if so, allow default browser text undo/redo
+    const modal = document.getElementById('assignModal');
+    if (modal && !modal.classList.contains('hidden')) {
+      if (e.key === 'Enter') {
+        const active = document.activeElement;
+        
+        // Determine if we are focused on a person input with suggestions dropdown visible
+        const isAutocompleteInput = active && active.classList.contains('modal-person-input');
+        const suggestionsOpen = isAutocompleteInput && !active.nextElementSibling.classList.contains('hidden');
+        
+        // Check if focused on other fields that shouldn't trigger global save directly
+        const isButton = active && (active.tagName === 'BUTTON');
+        
+        if (!suggestionsOpen && !isButton) {
+          e.preventDefault();
+          saveShift(true);
+        }
+      }
+    }
+    
+    // Keyboard Shortcuts for Undo / Redo (Ctrl+Z / Cmd+Z, Ctrl+Y / Cmd+Y)
     const active = document.activeElement;
     const isEditingText = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
     if (isEditingText) return;
@@ -1723,13 +1700,13 @@ function setupEventListeners() {
       if (e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
-          redo(); // Shift+Cmd+Z/Shift+Ctrl+Z to redo
+          redo(); 
         } else {
           undo();
         }
       } else if (e.key.toLowerCase() === 'y') {
         e.preventDefault();
-        redo(); // Cmd+Y/Ctrl+Y to redo
+        redo(); 
       }
     }
   });
