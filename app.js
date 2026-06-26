@@ -1,8 +1,9 @@
 /*
-  Grafik Pracy BLDSRV - Application Logic (V2)
+  Grafik Pracy BLDSRV - Application Logic (V3)
   Implements advanced state management, LocalStorage persistence,
   dynamic autocomplete stack, preset management, category blocks,
-  unrecognized name interactive workflows, and collaborator tracking.
+  unrecognized name interactive workflows, collaborator tracking,
+  and a 200-action Undo/Redo engine (Point 1).
 */
 
 // --- INITIAL DATA SEEDING ---
@@ -71,6 +72,122 @@ let state = {
   pendingSaveCallback: null
 };
 
+// --- UNDO / REDO SYSTEM (Point 1: 200 actions) ---
+let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY = 200;
+
+function recordAction() {
+  // Capture a deep clone of structural state
+  const snapshot = JSON.stringify({
+    employees: state.employees,
+    categories: state.categories,
+    shifts: state.shifts,
+    presets: state.presets
+  });
+  
+  // Do not record if identical to the top of the stack
+  if (undoStack.length > 0 && undoStack[undoStack.length - 1] === snapshot) {
+    return;
+  }
+  
+  undoStack.push(snapshot);
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift(); // keep last 200
+  }
+  
+  // Clear redo stack on new actions
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  
+  // Push current state to redo stack
+  const currentSnapshot = JSON.stringify({
+    employees: state.employees,
+    categories: state.categories,
+    shifts: state.shifts,
+    presets: state.presets
+  });
+  redoStack.push(currentSnapshot);
+  
+  // Pop and apply previous state
+  const prevSnapshot = JSON.parse(undoStack.pop());
+  state.employees = prevSnapshot.employees;
+  state.categories = prevSnapshot.categories;
+  state.shifts = prevSnapshot.shifts;
+  state.presets = prevSnapshot.presets;
+  
+  saveStateToStorage();
+  
+  // Sync active profile in case it was reverted
+  const exists = state.employees.some(e => e.id === state.currentProfileId);
+  if (!exists) {
+    const admin = state.employees.find(e => e.role === 'Administrator');
+    state.currentProfileId = admin ? admin.id : state.employees[0]?.id || '';
+    localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
+  }
+  
+  // Refresh UI
+  populateProfileDropdown();
+  updateRoleMode();
+  renderActiveView();
+  updateUndoRedoButtons();
+  
+  showToast('Cofnięto ostatnią akcję');
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  
+  // Push current state to undo stack
+  const currentSnapshot = JSON.stringify({
+    employees: state.employees,
+    categories: state.categories,
+    shifts: state.shifts,
+    presets: state.presets
+  });
+  undoStack.push(currentSnapshot);
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+  
+  // Pop and apply next state
+  const nextSnapshot = JSON.parse(redoStack.pop());
+  state.employees = nextSnapshot.employees;
+  state.categories = nextSnapshot.categories;
+  state.shifts = nextSnapshot.shifts;
+  state.presets = nextSnapshot.presets;
+  
+  saveStateToStorage();
+  
+  // Sync active profile
+  const exists = state.employees.some(e => e.id === state.currentProfileId);
+  if (!exists) {
+    const admin = state.employees.find(e => e.role === 'Administrator');
+    state.currentProfileId = admin ? admin.id : state.employees[0]?.id || '';
+    localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
+  }
+  
+  // Refresh UI
+  populateProfileDropdown();
+  updateRoleMode();
+  renderActiveView();
+  updateUndoRedoButtons();
+  
+  showToast('Przywrócono akcję');
+}
+
+function updateUndoRedoButtons() {
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+  if (btnUndo) btnUndo.disabled = undoStack.length === 0;
+  if (btnRedo) btnRedo.disabled = redoStack.length === 0;
+}
+
+
 // --- INITIALIZATION ---
 function initApp() {
   // Load from localStorage or seed defaults
@@ -79,7 +196,7 @@ function initApp() {
   state.shifts = JSON.parse(localStorage.getItem('bldsrv_shifts')) || DEFAULT_SHIFTS;
   state.presets = JSON.parse(localStorage.getItem('bldsrv_presets')) || DEFAULT_PRESETS;
   
-  // Perform naming migration for existing data if necessary
+  // Perform naming migration for existing data
   migrateOldNaming();
 
   // Save back to storage
@@ -104,6 +221,9 @@ function initApp() {
   updateRoleMode();
   renderTabs();
   renderActiveView();
+  
+  // Sync undo/redo buttons status initially
+  updateUndoRedoButtons();
 }
 
 // --- MIGRATION: Nadzorca/Pracownik -> Administrator/Osoba ---
@@ -142,6 +262,7 @@ function updateRoleMode() {
   const body = document.body;
   const tabManageTeamBtn = document.getElementById('tabManageTeam');
   const adminScheduleControls = document.getElementById('adminScheduleControls');
+  const undoRedoHeader = document.getElementById('undoRedoHeader');
   
   if (!profile) return;
 
@@ -149,10 +270,12 @@ function updateRoleMode() {
     body.classList.add('app-mode-administrator');
     tabManageTeamBtn.classList.remove('hidden');
     adminScheduleControls.classList.remove('hidden');
+    undoRedoHeader.classList.remove('hidden'); // Show Undo/Redo to Admins
   } else {
     body.classList.remove('app-mode-administrator');
     tabManageTeamBtn.classList.add('hidden');
     adminScheduleControls.classList.add('hidden');
+    undoRedoHeader.classList.add('hidden'); // Hide Undo/Redo from regular employees
     
     // Hide inline category adding container
     document.getElementById('addCategoryFormContainer').classList.add('hidden');
@@ -335,7 +458,7 @@ function renderFullScheduleView() {
     if (isAdmin) {
       deleteCategoryBtn = `
         <button class="btn-delete-category" onclick="deleteCategory('${cat.id}')" title="Usuń kategorię">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
@@ -527,6 +650,9 @@ function handleAddTask(categoryId) {
     return;
   }
   
+  // Record action for undo/redo
+  recordAction();
+  
   // Add task to category
   state.categories[catIndex].tasks.push(taskName);
   saveStateToStorage();
@@ -543,6 +669,9 @@ function deleteTask(categoryId, taskName) {
   
   const catIndex = state.categories.findIndex(c => c.id === categoryId);
   if (catIndex === -1) return;
+  
+  // Record action
+  recordAction();
   
   // Remove task from category
   state.categories[catIndex].tasks = state.categories[catIndex].tasks.filter(t => t !== taskName);
@@ -566,6 +695,9 @@ function addCategory(name) {
     return;
   }
   
+  // Record action
+  recordAction();
+  
   const newCat = {
     id: 'cat-' + Date.now(),
     name: cleanName,
@@ -585,6 +717,9 @@ function deleteCategory(categoryId) {
   if (!confirm(`Czy na pewno chcesz usunąć całą kategorię "${cat.name}"? Spowoduje to usunięcie wszystkich należących do niej zadań (${cat.tasks.length}) oraz ich zaplanowanych zmian.`)) {
     return;
   }
+  
+  // Record action
+  recordAction();
   
   // Remove shifts for all tasks in this category
   cat.tasks.forEach(taskName => {
@@ -695,6 +830,9 @@ function toggleEmployeeRole(empId) {
     return;
   }
   
+  // Record action
+  recordAction();
+  
   state.employees[empIndex].role = newRole;
   saveStateToStorage();
   
@@ -721,6 +859,9 @@ function deleteEmployee(empId) {
   }
   
   if (confirm(`Czy na pewno chcesz usunąć ${empName} z zespołu? Usunięte zostaną również wszystkie powiązane dyżury.`)) {
+    // Record action
+    recordAction();
+    
     state.employees.splice(empIndex, 1);
     state.shifts = state.shifts.filter(s => s.employeeId !== empId);
     
@@ -742,7 +883,7 @@ function deleteEmployee(empId) {
   }
 }
 
-// --- SHIFT ASSIGNMENT MODAL LOGIC (Point 2 & 3) ---
+// --- SHIFT ASSIGNMENT MODAL LOGIC ---
 function openAssignModal(task, day, shiftId = null) {
   state.editingShiftId = shiftId;
   state.activeCellTask = task;
@@ -755,12 +896,10 @@ function openAssignModal(task, day, shiftId = null) {
   const deleteBtn = document.getElementById('btnDeleteShift');
   const mainContent = document.getElementById('modalMainContent');
   const unrecognizedPanel = document.getElementById('unrecognizedNamesPanel');
-  const presetManager = document.getElementById('presetManagerContainer');
   
   // Ensure we display main form and hide unrecognized panels on open
   mainContent.classList.remove('hidden');
   unrecognizedPanel.classList.add('hidden');
-  presetManager.classList.add('hidden');
   
   // Set subtitle task and day
   titleTask.textContent = task;
@@ -814,7 +953,7 @@ function closeAssignModal() {
   state.pendingSaveCallback = null;
 }
 
-// --- RENDER DYNAMIC AUTOCOMPLETE INPUTS (Point 2) ---
+// --- RENDER DYNAMIC AUTOCOMPLETE INPUTS (Point 2 & 3) ---
 function renderPeopleInputs() {
   const container = document.getElementById('modalPeopleInputsContainer');
   container.innerHTML = '';
@@ -849,14 +988,35 @@ function renderPeopleInputs() {
     const input = row.querySelector('.modal-person-input');
     const dropdown = row.querySelector('.suggestions-dropdown');
     
-    // Bind Key and Input Events for Autocomplete and Nav (Point 2)
+    // Bind Key and Input Events for Autocomplete and Nav
     input.addEventListener('input', (e) => {
-      const val = e.target.value;
+      let val = e.target.value;
+      
+      // Fallback for Comma handling (Point 2: triggers when comma is entered in input)
+      if (val.endsWith(',')) {
+        val = val.slice(0, -1); // strip comma
+        
+        // Autocomplete with highlighted suggestion if open
+        let chosenName = val.trim();
+        const suggestions = dropdown.querySelectorAll('.suggestion-item');
+        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+          chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+        }
+        
+        // Complete current row and append a new one
+        state.modalPeople[index] = chosenName;
+        state.modalPeople.push('');
+        renderPeopleInputs();
+        focusPeopleInputRow(state.modalPeople.length - 1);
+        return;
+      }
+      
       state.modalPeople[index] = val;
       showAutocompleteSuggestions(index, val);
     });
     
     input.addEventListener('keydown', (e) => {
+      const val = e.target.value;
       const suggestions = dropdown.querySelectorAll('.suggestion-item');
       
       if (e.key === 'ArrowDown') {
@@ -875,12 +1035,18 @@ function renderPeopleInputs() {
       } 
       else if (e.key === 'Enter') {
         e.preventDefault();
-        // If dropdown is open, select highlighted option
-        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1) {
-          const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
-          selectAutocompleteSuggestion(index, selectedName);
+        
+        // Point 3: Enter autocompletes but KEEPS focus in current input
+        if (!dropdown.classList.contains('hidden')) {
+          if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+            const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+            state.modalPeople[index] = selectedName;
+            renderPeopleInputs();
+            // Focus remains on this row so they can type comma next
+            focusPeopleInputRow(index);
+          }
         } else {
-          // Dropdown is closed, move focus
+          // Dropdown is already closed: press Enter again to move focus
           if (val.trim() !== '') {
             // Move to next input or to time input
             if (index < state.modalPeople.length - 1) {
@@ -896,11 +1062,11 @@ function renderPeopleInputs() {
         
         // Autocomplete with highlighted suggestion if open
         let chosenName = val.trim();
-        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1) {
+        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
           chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
         }
         
-        // Complete current row and append a new one (Point 2, subpoint 2)
+        // Complete current row and append a new one (Point 2)
         state.modalPeople[index] = chosenName;
         state.modalPeople.push('');
         renderPeopleInputs();
@@ -965,7 +1131,7 @@ function showAutocompleteSuggestions(index, query) {
   }
   
   dropdown.innerHTML = '';
-  state.activeSuggestionIndex = 0; // Default highlight the first option (Point 2)
+  state.activeSuggestionIndex = 0; // Default highlight the first option
   
   matches.forEach((emp, sIndex) => {
     const div = document.createElement('div');
@@ -996,7 +1162,6 @@ function highlightSuggestion(dropdown) {
   items.forEach((item, index) => {
     if (index === state.activeSuggestionIndex) {
       item.classList.add('highlighted');
-      // Scroll into view if needed
       item.scrollIntoView({ block: 'nearest' });
     } else {
       item.classList.remove('highlighted');
@@ -1007,96 +1172,65 @@ function highlightSuggestion(dropdown) {
 function selectAutocompleteSuggestion(index, name) {
   state.modalPeople[index] = name;
   renderPeopleInputs();
-  
-  // Move focus to next input row or to time input
-  if (index < state.modalPeople.length - 1) {
-    focusPeopleInputRow(index + 1);
-  } else {
-    document.getElementById('modalTimeInput').focus();
-  }
+  // Focus remains in the input (Point 3)
+  focusPeopleInputRow(index);
 }
 
-// --- VIEW PRESETS (Point 2, subpoint 3) ---
+// --- RENDER COMPACT PRESETS with inline deletion (Point 4) ---
 function renderPresetButtons() {
   const grid = document.getElementById('quickSelectGrid');
   grid.innerHTML = '';
   
-  state.presets.forEach(p => {
+  state.presets.forEach((p, index) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'preset-wrapper';
+    
+    // Select button
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'preset-btn';
     btn.setAttribute('data-time', p.time);
     btn.setAttribute('data-preset', p.label);
-    
     btn.innerHTML = `
       <span class="preset-label">${p.label}</span>
       <span class="preset-value">${p.time}</span>
     `;
     
-    grid.appendChild(btn);
+    // Delete button next to it (Point 4)
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'preset-delete-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'Usuń szablon';
+    
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // prevent triggering selection
+      deletePreset(index);
+    });
+    
+    wrapper.appendChild(btn);
+    wrapper.appendChild(delBtn);
+    grid.appendChild(wrapper);
   });
+  
+  // Resync active selection highlights
+  syncPresetHighlight(document.getElementById('modalTimeInput').value);
 }
 
 function syncPresetHighlight(timeString) {
-  const presetButtons = document.querySelectorAll('.preset-btn');
-  presetButtons.forEach(btn => {
+  const wrappers = document.querySelectorAll('.preset-wrapper');
+  wrappers.forEach(wrap => {
+    const btn = wrap.querySelector('.preset-btn');
     const btnTime = btn.getAttribute('data-time');
     if (btnTime === timeString) {
-      btn.classList.add('active');
+      wrap.classList.add('active');
     } else {
-      btn.classList.remove('active');
+      wrap.classList.remove('active');
     }
   });
 }
 
-// --- PRESET MANAGER (Point 2, subpoint 3) ---
-function togglePresetManager() {
-  const container = document.getElementById('presetManagerContainer');
-  const isHidden = container.classList.contains('hidden');
-  
-  if (isHidden) {
-    container.classList.remove('hidden');
-    renderPresetManagerList();
-    // Scroll modal down to show expanded manager
-    const modalContainer = document.querySelector('.modal-container');
-    setTimeout(() => {
-      modalContainer.scrollTo({ top: modalContainer.scrollHeight, behavior: 'smooth' });
-    }, 50);
-  } else {
-    container.classList.add('hidden');
-  }
-}
-
-function renderPresetManagerList() {
-  const container = document.getElementById('presetManagerList');
-  container.innerHTML = '';
-  
-  if (state.presets.length === 0) {
-    container.innerHTML = `<p class="no-tasks-text" style="font-size: 11px;">Brak szablonów. Stwórz pierwszy poniżej.</p>`;
-    return;
-  }
-  
-  state.presets.forEach((p, index) => {
-    const item = document.createElement('div');
-    item.className = 'preset-item';
-    
-    item.innerHTML = `
-      <div class="preset-item-info">
-        <span class="preset-item-label">${p.label}</span>
-        <span class="preset-item-time">${p.time}</span>
-      </div>
-      <button type="button" class="btn-delete-preset" onclick="deletePreset(${index})" title="Usuń szablon">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    `;
-    
-    container.appendChild(item);
-  });
-}
-
+// --- ACTIONS: PRESETS (Point 4) ---
 function addPreset() {
   const labelInput = document.getElementById('newPresetLabel');
   const timeInput = document.getElementById('newPresetTime');
@@ -1109,6 +1243,9 @@ function addPreset() {
     return;
   }
   
+  // Record action
+  recordAction();
+  
   // Add to state
   state.presets.push({ label, time });
   saveStateToStorage();
@@ -1119,27 +1256,24 @@ function addPreset() {
   
   // Re-render
   renderPresetButtons();
-  renderPresetManagerList();
-  
-  // Resync active selection highlights
-  syncPresetHighlight(document.getElementById('modalTimeInput').value);
-  
   showToast(`Dodano szablon "${label}"`);
 }
 
 function deletePreset(index) {
   const p = state.presets[index];
+  
+  // Record action
+  recordAction();
+  
   state.presets.splice(index, 1);
   saveStateToStorage();
   
   renderPresetButtons();
-  renderPresetManagerList();
-  syncPresetHighlight(document.getElementById('modalTimeInput').value);
-  
   showToast(`Usunięto szablon "${p.label}"`);
 }
 
-// --- SAVE SHIFT LOGIC with UNRECOGNIZED NAMES workflow (Point 3 & 2) ---
+
+// --- SAVE SHIFT LOGIC ---
 function saveShift(closeAfter = true) {
   const timeInput = document.getElementById('modalTimeInput');
   const time = timeInput.value.trim();
@@ -1149,7 +1283,6 @@ function saveShift(closeAfter = true) {
     return false;
   }
   
-  // Collect all unique non-empty names from inputs
   const names = state.modalPeople
     .map(n => n.trim())
     .filter(n => n !== '');
@@ -1176,11 +1309,13 @@ function saveShift(closeAfter = true) {
     return false;
   }
   
-  // All names are recognized, proceed to save directly
   return executeSave(names, time, closeAfter);
 }
 
 function executeSave(names, time, closeAfter) {
+  // Record action for undo/redo
+  recordAction();
+  
   // Map names to employee IDs
   const employeeIds = names.map(name => {
     const emp = state.employees.find(e => e.name.toLowerCase() === name.toLowerCase());
@@ -1196,9 +1331,8 @@ function executeSave(names, time, closeAfter) {
     }
     showToast('Zaktualizowano zmianę pomyślnie');
   } else {
-    // Create Mode - create shift for each entered person in the cell (Poniedziałek, Cleaning 1.0 has multiple separate cards)
+    // Create Mode - create shifts for each entered person in the cell
     employeeIds.forEach(empId => {
-      // Avoid duplicates for the exact same employee in the same cell
       const duplicate = state.shifts.some(s => 
         s.taskId === state.activeCellTask && 
         s.day === state.activeCellDay && 
@@ -1278,6 +1412,9 @@ function renderUnrecognizedNamesList() {
 }
 
 function handleAddUnrecognizedMember(name, role) {
+  // Record action for undo/redo
+  recordAction();
+  
   // Create member in database
   const newEmp = {
     id: 'emp-' + Date.now() + '-' + Math.floor(Math.random() * 100),
@@ -1288,7 +1425,7 @@ function handleAddUnrecognizedMember(name, role) {
   state.employees.push(newEmp);
   saveStateToStorage();
   
-  // Sync dropdown
+  // Sync UI
   populateProfileDropdown();
   updateRoleMode();
   
@@ -1296,7 +1433,6 @@ function handleAddUnrecognizedMember(name, role) {
   state.unrecognizedNames = state.unrecognizedNames.filter(n => n !== name);
   showToast(`Dodano "${name}" do zespołu jako ${role}`);
   
-  // If no unrecognized names are left, execute the pending save and close modal
   if (state.unrecognizedNames.length === 0) {
     if (state.pendingSaveCallback) {
       state.pendingSaveCallback();
@@ -1307,7 +1443,6 @@ function handleAddUnrecognizedMember(name, role) {
 }
 
 function handleCorrectUnrecognizedName(name) {
-  // Return to the main form so user can fix spelling
   closeUnrecognizedNamesPanel();
   
   // Find which input had this name and focus it
@@ -1326,6 +1461,9 @@ function deleteActiveShift() {
   if (!state.editingShiftId) return;
   
   if (confirm('Czy na pewno chcesz usunąć tę zmianę?')) {
+    // Record action
+    recordAction();
+    
     state.shifts = state.shifts.filter(s => s.id !== state.editingShiftId);
     saveStateToStorage();
     renderFullScheduleView();
@@ -1334,7 +1472,7 @@ function deleteActiveShift() {
   }
 }
 
-// --- AUTO-SAVE ON CLICK OUTSIDE / BLUR (Point 2, subpoint 5) ---
+// --- AUTO-SAVE ON CLICK OUTSIDE / BLUR ---
 function autoSaveAndClose() {
   const timeInput = document.getElementById('modalTimeInput');
   const time = timeInput.value.trim();
@@ -1344,9 +1482,8 @@ function autoSaveAndClose() {
     .map(n => n.trim())
     .filter(n => n !== '');
   
-  // Only attempt to save if the form is valid, otherwise just close (cancel)
   if (names.length > 0 && time !== '') {
-    // Check for unrecognized names before saving
+    // Check for unrecognized names
     const unrecognized = [];
     names.forEach(name => {
       const exists = state.employees.some(emp => emp.name.toLowerCase() === name.toLowerCase());
@@ -1356,14 +1493,11 @@ function autoSaveAndClose() {
     });
     
     if (unrecognized.length > 0) {
-      // If we clicked outside and there are unrecognized names, we don't save, just close/cancel to avoid breaking flow
       closeAssignModal();
     } else {
-      // Valid names and time - execute save and close
       executeSave(names, time, true);
     }
   } else {
-    // Invalid or empty form, just close/cancel
     closeAssignModal();
   }
 }
@@ -1427,6 +1561,9 @@ function setupEventListeners() {
       return;
     }
     
+    // Record action
+    recordAction();
+    
     const newEmp = {
       id: 'emp-' + Date.now(),
       name: name,
@@ -1459,7 +1596,7 @@ function setupEventListeners() {
     renderTeamManagementView();
   });
 
-  // 6. Modal Close and Overlay clicks
+  // 6. Modal Close and Cancel
   document.getElementById('btnModalClose').addEventListener('click', closeAssignModal);
   document.getElementById('btnCancelShift').addEventListener('click', closeAssignModal);
   
@@ -1470,7 +1607,7 @@ function setupEventListeners() {
     }
   });
 
-  // 7. Preset Clicks in Modal
+  // 7. Preset Selection inside Grid
   const presetGrid = document.getElementById('quickSelectGrid');
   presetGrid.addEventListener('click', (e) => {
     const btn = e.target.closest('.preset-btn');
@@ -1488,7 +1625,7 @@ function setupEventListeners() {
     syncPresetHighlight(e.target.value.trim());
   });
   
-  // 9. Time Input Enter keypress to submit (Point 2, subpoint 5)
+  // 9. Time Input Enter keypress to submit
   timeInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1505,17 +1642,26 @@ function setupEventListeners() {
   // 11. Delete Shift Button
   document.getElementById('btnDeleteShift').addEventListener('click', deleteActiveShift);
 
-  // 12. Preset Manager toggler & submit
-  document.getElementById('btnManagePresets').addEventListener('click', togglePresetManager);
-  document.getElementById('btnAddPresetSubmit').addEventListener('click', addPreset);
+  // 12. Simplified Preset Add Inline Form (Point 4)
+  document.getElementById('btnInlineAddPreset').addEventListener('click', addPreset);
+  
+  // Support Enter keypress in inline preset inputs
+  const presetInputs = [document.getElementById('newPresetLabel'), document.getElementById('newPresetTime')];
+  presetInputs.forEach(inp => {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addPreset();
+      }
+    });
+  });
 
-  // 13. Auto-save on Click Outside (Point 2, subpoint 5)
+  // 13. Auto-save on Click Outside (detect when clicked outside modal container)
   document.addEventListener('mousedown', (e) => {
     const modal = document.getElementById('assignModal');
     const container = document.querySelector('.modal-container');
     const toastContainer = document.getElementById('toastContainer');
     
-    // If modal is open, and click target is not inside the modal container, and not inside a toast notification
     if (!modal.classList.contains('hidden') && 
         !container.contains(e.target) && 
         !toastContainer.contains(e.target)) {
@@ -1555,6 +1701,36 @@ function setupEventListeners() {
       input.value = '';
       addCategoryFormContainer.classList.add('hidden');
       btnShowAddCategory.classList.remove('hidden');
+    }
+  });
+
+  // 15. Undo and Redo Button clicks (Point 1)
+  document.getElementById('btnUndo').addEventListener('click', undo);
+  document.getElementById('btnRedo').addEventListener('click', redo);
+  
+  // 16. Keyboard Shortcuts for Undo / Redo (Ctrl+Z / Cmd+Z, Ctrl+Y / Cmd+Y) (Point 1)
+  document.addEventListener('keydown', (e) => {
+    // Check if focused element is a text input - if so, allow default browser text undo/redo
+    const active = document.activeElement;
+    const isEditingText = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+    if (isEditingText) return;
+    
+    const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+    const profile = getCurrentProfile();
+    const isAdmin = profile && profile.role === 'Administrator';
+    
+    if (isAdmin && isCmdOrCtrl) {
+      if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo(); // Shift+Cmd+Z/Shift+Ctrl+Z to redo
+        } else {
+          undo();
+        }
+      } else if (e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo(); // Cmd+Y/Ctrl+Y to redo
+      }
     }
   });
 }

@@ -30,6 +30,22 @@
         <div class="week-badge" id="weekRange">22.06 - 26.06</div>
       </div>
       <div class="header-right">
+        <!-- UNDO / REDO BUTTONS FOR ADMINISTRATORS -->
+        <div class="undo-redo-container hidden" id="undoRedoHeader">
+          <button class="btn-undo-redo" id="btnUndo" title="Cofnij (Ctrl+Z / Cmd+Z)" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7v6h6"></path>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+            </svg>
+          </button>
+          <button class="btn-undo-redo" id="btnRedo" title="Ponów (Ctrl+Y / Cmd+Y)" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 7v6h-6"></path>
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
+            </svg>
+          </button>
+        </div>
+
         <span class="profile-label">PROFIL:</span>
         <div class="custom-select-wrapper">
           <select id="profileSelect" class="profile-select">
@@ -213,31 +229,22 @@
               <input type="text" id="modalTimeInput" placeholder="np. 08:00–12:00" required autocomplete="off">
             </div>
 
-            <!-- Preset Selection Section -->
+            <!-- Preset Selection Section (Simplified directly in modal, Point 4) -->
             <div class="form-group">
-              <div class="quick-select-header">
-                <label>SZYBKI WYBÓR:</label>
-                <button type="button" class="btn-link" id="btnManagePresets">ZARZĄDZAJ</button>
-              </div>
-              <div class="quick-select-grid" id="quickSelectGrid">
-                <!-- Dynamic preset buttons -->
-              </div>
-            </div>
-
-            <!-- PRESET MANAGER SUB-FORM (Initially Hidden) -->
-            <div id="presetManagerContainer" class="preset-manager-panel hidden">
-              <div class="preset-manager-header">
-                <h4>Zarządzanie Szybkimi Wyborami</h4>
-              </div>
-              <div class="preset-list" id="presetManagerList">
-                <!-- Preset items with delete buttons -->
-              </div>
-              <div class="add-preset-form">
-                <h5>Dodaj Nowy Szablon</h5>
-                <div class="add-preset-row">
-                  <input type="text" id="newPresetLabel" placeholder="Etykieta (np. Rano)" autocomplete="off">
-                  <input type="text" id="newPresetTime" placeholder="Godziny (np. 08:00–12:00)" autocomplete="off">
-                  <button type="button" class="btn btn-success" id="btnAddPresetSubmit">Dodaj</button>
+              <label>SZYBKI WYBÓR:</label>
+              <div class="presets-interface-container">
+                <div class="quick-select-grid" id="quickSelectGrid">
+                  <!-- Dynamic preset buttons with inline deletion -->
+                </div>
+                
+                <!-- Compact Inline Add Preset Form -->
+                <div class="add-preset-inline-form">
+                  <span class="add-preset-title">DODAJ SZYBKI WYBÓR:</span>
+                  <div class="add-preset-inline-row">
+                    <input type="text" id="newPresetLabel" placeholder="Etykieta (np. Rano)" autocomplete="off">
+                    <input type="text" id="newPresetTime" placeholder="Godziny (np. 08:00-12:00)" autocomplete="off">
+                    <button type="button" class="btn btn-success btn-sm" id="btnInlineAddPreset">Dodaj</button>
+                  </div>
                 </div>
               </div>
             </div>

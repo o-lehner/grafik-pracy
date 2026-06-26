@@ -2,6 +2,7 @@
   Grafik Pracy BLDSRV - Premium Stylesheet
   Clean, modern design matching the provided screenshots.
   Enhanced for autocomplete, categories, preset manager, and unrecognized names dialogs.
+  V3: Added Undo/Redo header controls and simplified presets layout.
 */
 
 :root {
@@ -132,7 +133,7 @@ body {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .profile-label {
@@ -140,6 +141,42 @@ body {
   font-weight: 700;
   color: var(--text-light);
   letter-spacing: 0.5px;
+}
+
+/* UNDO / REDO CONTROLS (Point 1) */
+.undo-redo-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  margin-right: 4px;
+}
+
+.btn-undo-redo {
+  background: transparent;
+  border: none;
+  color: var(--text-medium);
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.btn-undo-redo:hover:not(:disabled) {
+  color: var(--primary);
+  background-color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-undo-redo:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* CUSTOM SELECT */
@@ -363,7 +400,7 @@ body {
   padding: 20px 0;
 }
 
-/* INDIVIDUAL VIEW COWORKERS SECTION */
+/* INDIVIDUAL VIEW COWORKERS SECTION (Point 8) */
 .coworkers-section {
   border-top: 1px dashed var(--border-color);
   padding-top: 8px;
@@ -913,6 +950,11 @@ input[type="text"]:focus {
   box-shadow: 0 4px 12px rgba(130, 180, 64, 0.25);
 }
 
+.btn-success.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 .btn-secondary-outline {
   background-color: white;
   border: 1px solid var(--secondary);
@@ -1330,123 +1372,126 @@ input[type="text"]:focus {
 }
 
 
-/* PRESET MANAGER SUB-PANEL (Point 2) */
-.preset-manager-panel {
+/* COMPACT PRESET MANAGEMENT WITH INLINE DELETION AND FORM (Point 4) */
+.presets-interface-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   background-color: #f8fafc;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 16px;
-  margin-top: 16px;
+}
+
+.preset-wrapper {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  animation: slide-down 0.2s ease forwards;
-}
-
-@keyframes slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.preset-manager-header {
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 8px;
-}
-
-.preset-manager-header h4 {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-dark);
-}
-
-.preset-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 140px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.preset-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #ffffff;
-  padding: 8px 12px;
-  border-radius: 6px;
+  align-items: stretch;
   border: 1px solid var(--border-color);
-  font-size: 12px;
-}
-
-.preset-item-info {
-  display: flex;
-  gap: 12px;
-}
-
-.preset-item-label {
-  font-weight: 700;
-  color: var(--text-dark);
-}
-
-.preset-item-time {
-  color: var(--text-muted);
-}
-
-.btn-delete-preset {
-  background: transparent;
-  border: none;
-  color: var(--text-light);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: var(--radius-sm);
+  background-color: #ffffff;
+  overflow: hidden;
   transition: var(--transition);
 }
 
-.btn-delete-preset:hover {
+.preset-wrapper:hover {
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-sm);
+}
+
+.preset-wrapper.active {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  border-width: 1.5px;
+}
+
+.preset-btn {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+}
+
+.preset-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.preset-wrapper.active .preset-label {
+  color: var(--primary-hover);
+}
+
+.preset-value {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.preset-delete-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  color: var(--text-light);
+  padding: 0 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: var(--transition);
+}
+
+.preset-wrapper.active .preset-delete-btn {
+  border-left-color: var(--primary-border);
+}
+
+.preset-delete-btn:hover {
   color: var(--danger);
   background-color: var(--danger-light);
 }
 
-.add-preset-form {
+.add-preset-inline-form {
   border-top: 1px dashed var(--border-color);
   padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.add-preset-form h5 {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-  text-transform: uppercase;
+.add-preset-title {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-light);
   letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
-.add-preset-row {
+.add-preset-inline-row {
   display: flex;
   gap: 8px;
 }
 
-.add-preset-row input {
+.add-preset-inline-row input {
   flex: 1;
   padding: 8px 12px;
   font-size: 12px;
-  height: 36px;
+  height: 34px;
+  border-radius: 6px;
 }
 
-.add-preset-row .btn {
-  padding: 0 16px;
+.add-preset-inline-row .btn {
+  padding: 0 14px;
   font-size: 12px;
-  height: 36px;
+  height: 34px;
+  border-radius: 6px;
 }
 
 
@@ -1501,62 +1546,6 @@ input[type="text"]:focus {
 .unrecognized-actions .btn {
   font-size: 12px;
   padding: 8px 14px;
-}
-
-
-/* QUICK SELECT Presets */
-.quick-select-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.quick-select-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.preset-btn {
-  background-color: #ffffff;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  cursor: pointer;
-  transition: var(--transition);
-  text-align: left;
-  outline: none;
-}
-
-.preset-btn:hover {
-  border-color: var(--border-focus);
-  background-color: #fafbfc;
-}
-
-.preset-btn.active {
-  background-color: var(--primary-light);
-  border-color: var(--primary);
-  border-width: 1.5px;
-}
-
-.preset-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dark);
-}
-
-.preset-btn.active .preset-label {
-  color: var(--primary-hover);
-}
-
-.preset-value {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 
@@ -1642,26 +1631,22 @@ input[type="text"]:focus {
 
 /* CUSTOM SCROLLBARS */
 .scrollable::-webkit-scrollbar,
-.preset-list::-webkit-scrollbar,
 .suggestions-dropdown::-webkit-scrollbar {
   width: 6px;
 }
 
 .scrollable::-webkit-scrollbar-track,
-.preset-list::-webkit-scrollbar-track,
 .suggestions-dropdown::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .scrollable::-webkit-scrollbar-thumb,
-.preset-list::-webkit-scrollbar-thumb,
 .suggestions-dropdown::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
   border-radius: 3px;
 }
 
 .scrollable::-webkit-scrollbar-thumb:hover,
-.preset-list::-webkit-scrollbar-thumb:hover,
 .suggestions-dropdown::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
 }
