@@ -377,7 +377,6 @@ function renderMyTasksView() {
         shiftsHtml += `
           <div class="shift-card">
             <div class="shift-card-header">
-              <span class="status-dot"></span>
               <span class="employee-name">${shift.time}</span>
             </div>
             <span class="shift-task-badge">${shift.taskId}</span>
@@ -446,11 +445,11 @@ function renderFullScheduleView() {
           <thead>
             <tr>
               <th class="col-task">ZADANIE</th>
-              <th class="col-day">PONIEDZIAŁEK</th>
-              <th class="col-day">WTOREK</th>
-              <th class="col-day">ŚRODA</th>
-              <th class="col-day highlighted">CZWARTEK</th>
-              <th class="col-day">PIĄTEK</th>
+              <th class="col-day" data-day-index="0">PONIEDZIAŁEK</th>
+              <th class="col-day" data-day-index="1">WTOREK</th>
+              <th class="col-day" data-day-index="2">ŚRODA</th>
+              <th class="col-day" data-day-index="3">CZWARTEK</th>
+              <th class="col-day" data-day-index="4">PIĄTEK</th>
             </tr>
           </thead>
           <tbody class="category-table-body" data-category-id="${cat.id}">
@@ -483,6 +482,22 @@ function renderFullScheduleView() {
     
     const tbody = block.querySelector('.category-table-body');
     tbody.innerHTML = '';
+
+    const currentDate = new Date();
+    // getDay() zwraca 0 dla niedzieli, 1 dla poniedziałku...
+    // Chcemy 0 dla Poniedziałku, 4 dla Piątku.
+    let currentDayIdx = currentDate.getDay() - 1; 
+    if (currentDayIdx < 0 || currentDayIdx > 4) { // Jeśli weekend, domyślnie na np. czwartek
+      currentDayIdx = 3; 
+    }
+
+    // Podświetlenie nagłówka dnia
+    const dayHeaders = block.querySelectorAll('.schedule-table th.col-day');
+    dayHeaders.forEach((header, index) => {
+        if (index === currentDayIdx) {
+            header.classList.add('col-today-th');
+        }
+    });
     
     cat.tasks.forEach(task => {
       const tr = document.createElement('tr');
@@ -510,11 +525,11 @@ function renderFullScheduleView() {
       `;
       tr.appendChild(tdTask);
       
-      DAYS_OF_WEEK.forEach(day => {
+      DAYS_OF_WEEK.forEach((day, dayIndex) => {
         const tdDay = document.createElement('td');
         tdDay.className = 'cell-day';
-        if (day === 'Czwartek') {
-          tdDay.classList.add('col-thursday-cell');
+        if (dayIndex === currentDayIdx) {
+          tdDay.classList.add('col-today-td');
         }
         
         tdDay.setAttribute('data-task', task);
@@ -544,7 +559,6 @@ function renderFullScheduleView() {
           card.setAttribute('data-shift-id', shift.id);
           card.innerHTML = `
             <div class="shift-card-header">
-              <span class="status-dot"></span>
               <span class="employee-name">${empName}</span>
               ${deleteCardBtn}
             </div>
@@ -744,7 +758,8 @@ function renderTeamManagementView() {
       </button>
     `;
     
-    badge.addEventListener('click', (e) => {
+    const roleBadge = item.querySelector('.role-badge');
+    roleBadge.addEventListener('click', (e) => {
       e.stopPropagation();
       if (isDisabled) {
         showToast('Jako zalogowany Administrator nie możesz zmienić swojej własnej roli', 'danger');
@@ -960,15 +975,27 @@ function renderPeopleInputs() {
       else if (e.key === 'Enter') {
         e.preventDefault();
         
-        // Point 3 & 4: Enter autocompletes, closes dropdown, and KEEPS focus in current input
-        if (!dropdown.classList.contains('hidden')) {
-          if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
-            const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
-            selectAutocompleteSuggestion(index, selectedName);
-          }
-        } else {
-          // Dropdown is already closed: press Enter a second time to move focus
-          if (val.trim() !== '') {
+        // Obsługa Enter:
+        // 1. Jeśli dropdown jest otwarty i jest wybrana sugestia - wybierz ją.
+        // 2. Jeśli dropdown jest otwarty, ale nic nie wybrano - zamknij dropdown i zostaw kursor w polu.
+        // 3. Jeśli dropdown jest zamknięty i wpisana jest wartość - przejdź do następnego pola osoby lub do pola czasu.
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (!dropdown.classList.contains('hidden')) {
+            if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+              const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+              selectAutocompleteSuggestion(index, selectedName); // Kursor zostanie na końcu
+              // Nie przenosimy fokusu od razu, użytkownik może chcieć użyć przecinka lub ponownie nacisnąć Enter.
+            } else {
+              // Nic nie wybrano, zamknij dropdown i zachowaj fokus
+              dropdown.classList.add('hidden');
+              state.activeSuggestionIndex = -1;
+              const len = input.value.length;
+              input.setSelectionRange(len, len);
+            }
+          } else {
+            // Dropdown jest zamknięty (albo nigdy nie był otwarty, albo został zamknięty Enterem wcześniej)
+            // Przeniesienie fokusu:
             if (index < state.modalPeople.length - 1) {
               focusPeopleInputRow(index + 1);
             } else {
@@ -976,34 +1003,55 @@ function renderPeopleInputs() {
             }
           }
         }
-      }
-      else if (e.key === ',') {
-        e.preventDefault(); 
-        
-        let chosenName = val.trim();
-        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
-          chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+        else if (e.key === ',') {
+          e.preventDefault(); 
+          
+          let chosenName = val.trim();
+          if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+            chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+          }
+          
+          state.modalPeople[index] = chosenName;
+          state.modalPeople.push('');
+          renderPeopleInputs();
+          focusPeopleInputRow(state.modalPeople.length - 1);
         }
-        
-        state.modalPeople[index] = chosenName;
-        state.modalPeople.push('');
-        renderPeopleInputs();
-        focusPeopleInputRow(state.modalPeople.length - 1);
-      }
+      });
+      
+      input.addEventListener('focus', () => {
+        if (input.value.trim() !== '') {
+          showAutocompleteSuggestions(index, input.value);
+        }
+      });
+      
+      // Zdarzenie 'blur' musi być nieco opóźnione, aby umożliwić kliknięcie sugestii
+      input.addEventListener('blur', () => {
+        setTimeout(() => {
+          dropdown.classList.add('hidden');
+          state.activeSuggestionIndex = -1;
+        }, 200); 
+      });
     });
-    
-    input.addEventListener('focus', () => {
-      if (input.value.trim() !== '') {
-        showAutocompleteSuggestions(index, input.value);
-      }
-    });
-    
-    input.addEventListener('blur', () => {
-      setTimeout(() => {
-        dropdown.classList.add('hidden');
-      }, 200);
-    });
-  });
+
+    // Dodaj przycisk "+" do dodawania kolejnego pola osoby
+    const addPersonBtnContainer = document.createElement('div');
+    addPersonBtnContainer.className = 'add-person-row-btn-container';
+    addPersonBtnContainer.innerHTML = `
+        <button type="button" class="btn-add-person-row" onclick="addPersonInputRow()" title="Dodaj kolejną osobę">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </button>
+    `;
+    container.appendChild(addPersonBtnContainer);
+}
+
+function addPersonInputRow() {
+  recordAction(); 
+  state.modalPeople.push('');
+  renderPeopleInputs();
+  focusPeopleInputRow(state.modalPeople.length - 1);
 }
 
 function focusPeopleInputRow(index) {
@@ -1284,7 +1332,11 @@ function saveShift(closeAfter = true) {
   
   if (unrecognized.length > 0) {
     state.unrecognizedNames = unrecognized;
-    state.pendingSaveCallback = () => executeSave(names, time, closeAfter);
+    state.pendingSaveContext = { // Zmieniono na kontekst, aby przekazać wszystkie potrzebne dane
+        names: names,
+        time: time,
+        closeAfter: closeAfter
+    };
     openUnrecognizedNamesPanel();
     return false;
   }
@@ -1406,8 +1458,18 @@ function handleAddUnrecognizedMember(name, role) {
   showToast(`Dodano "${name}" do zespołu jako ${role}`);
   
   if (state.unrecognizedNames.length === 0) {
-    if (state.pendingSaveCallback) {
-      state.pendingSaveCallback();
+    if (state.pendingSaveContext) {
+      // Pobierz aktualne imiona, które mogą zawierać nowo dodane osoby
+      const updatedNames = state.modalPeople
+          .map(n => n.trim())
+          .filter(n => n !== '');
+      executeSave(updatedNames, state.pendingSaveContext.time, state.pendingSaveContext.closeAfter);
+      closeUnrecognizedNamesPanel(); 
+      // Jeśli closeAfter jest true, modal zostanie zamknięty w executeSave
+      if (state.pendingSaveContext.closeAfter) {
+          closeAssignModal();
+      }
+      state.pendingSaveContext = null; // Wyczyść kontekst po użyciu
     }
   } else {
     renderUnrecognizedNamesList();
@@ -1576,6 +1638,11 @@ function setupEventListeners() {
 
   const timeInput = document.getElementById('modalTimeInput');
   
+  // Czyść pole po kliknięciu (focus)
+  timeInput.addEventListener('focus', (e) => {
+    e.target.value = ''; // Czyść zawsze, niezależnie od wartości
+  });
+
   // Format on blur (Point 5)
   timeInput.addEventListener('blur', (e) => {
     const formatted = parseAndFormatTime(e.target.value.trim());
