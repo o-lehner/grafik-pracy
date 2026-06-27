@@ -764,6 +764,24 @@ function renderFullScheduleView() {
           shiftsContainer.appendChild(card);
         });
         
+        // Always-visible add button inside cell (admin only)
+        if (isAdmin) {
+          const cellAddBtn = document.createElement('button');
+          cellAddBtn.className = 'cell-add-btn';
+          cellAddBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Dodaj
+          `;
+          cellAddBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openAssignModal(task, day);
+          });
+          shiftsContainer.appendChild(cellAddBtn);
+        }
+        
         tdDay.appendChild(shiftsContainer);
         
         tdDay.addEventListener('click', () => {
