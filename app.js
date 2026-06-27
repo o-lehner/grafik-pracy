@@ -973,9 +973,8 @@ function moveDragGhost(e) {
   if (drag.type === 'category') {
     const targets = document.querySelectorAll('#categoriesContainer .category-block');
     targets.forEach(el => el.classList.remove('drag-before', 'drag-after'));
-    // Find the block whose vertical midpoint is nearest to cursor
-    let best = null;
-    let bestDist = Infinity;
+    if (targets.length <= 1) return;
+    let bestEl = null, bestMid = 0, bestDist = Infinity;
     targets.forEach(el => {
       if (el === drag.source) return;
       const r = el.getBoundingClientRect();
@@ -983,13 +982,13 @@ function moveDragGhost(e) {
       const dist = Math.abs(e.clientY - mid);
       if (dist < bestDist) {
         bestDist = dist;
-        best = { el, r, mid };
+        bestEl = el;
+        bestMid = mid;
       }
     });
-    if (best) {
-      const before = e.clientY < best.mid;
-      best.el.classList.toggle('drag-before', before);
-      best.el.classList.toggle('drag-after', !before);
+    if (bestEl) {
+      bestEl.classList.toggle('drag-before', e.clientY < bestMid);
+      bestEl.classList.toggle('drag-after', e.clientY >= bestMid);
     }
   } else if (drag.dropLine) {
     // Tasks: show a clean horizontal line between rows
@@ -1074,8 +1073,9 @@ function endDrag(e) {
         state.categories.splice(insertAt, 0, removed);
         recordAction();
         saveStateToStorage();
-        drag.source.classList.add('drop-highlight');
-        setTimeout(() => drag.source.classList.remove('drop-highlight'), 700);
+        const catMoved = drag.source;
+        catMoved.classList.add('drop-highlight');
+        setTimeout(() => catMoved.classList.remove('drop-highlight'), 700);
       }
     } else {
       const draggedTask = drag.source.getAttribute('data-task-name');
@@ -1093,8 +1093,9 @@ function endDrag(e) {
           tasks.splice(insertAt, 0, removed);
           recordAction();
           saveStateToStorage();
-          drag.source.classList.add('drop-highlight');
-          setTimeout(() => drag.source.classList.remove('drop-highlight'), 800);
+          const rowMoved = drag.source;
+          rowMoved.classList.add('drop-highlight');
+          setTimeout(() => rowMoved.classList.remove('drop-highlight'), 800);
         }
       }
     }
