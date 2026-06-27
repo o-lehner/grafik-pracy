@@ -2288,8 +2288,8 @@ function setupEventListeners() {
 
   const timeInput = document.getElementById('modalTimeInput');
   
-  // Czyść pole po kliknięciu tylko gdy to domyślny placeholder
-  timeInput.addEventListener('focus', (e) => {
+  // Czyść pole tylko po kliknięciu myszą (nie po Enter/Tab)
+  timeInput.addEventListener('mousedown', (e) => {
     if (e.target.value === '08:00–12:00') {
       e.target.value = '';
     }
