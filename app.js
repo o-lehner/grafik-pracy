@@ -821,8 +821,8 @@ function initDrag(element, type, sourceId, sourceName) {
   
   if (type === 'category') {
     document.body.classList.add('dragging-category');
-    // Collapse all non-dragged categories so only headers are visible
-    document.querySelectorAll('.category-block:not(.dragging) .category-collapsible').forEach(el => {
+    // Collapse ALL categories (including dragged one) so only headers are visible
+    document.querySelectorAll('.category-block .category-collapsible').forEach(el => {
       el.dataset.dragForceHidden = '1';
       el.classList.add('hidden');
     });
@@ -841,6 +841,11 @@ function initDrag(element, type, sourceId, sourceName) {
         </span>
       </span>
     `;
+    // Create drop line indicator for tasks
+    const dropLine = document.createElement('div');
+    dropLine.className = 'task-drop-line';
+    document.body.appendChild(dropLine);
+    drag.dropLine = dropLine;
   } else {
     ghost.textContent = sourceName;
   }
@@ -856,32 +861,55 @@ function moveDragGhost(e) {
   
   // Auto-scroll when near viewport edges
   const scrollMargin = 50;
-  const scrollSpeed = 12;
   if (e.clientY < scrollMargin) {
     window.scrollBy(0, -(scrollMargin - e.clientY) * 0.4);
   } else if (e.clientY > window.innerHeight - scrollMargin) {
     window.scrollBy(0, (e.clientY - (window.innerHeight - scrollMargin)) * 0.4);
   }
   
-  const targets = drag.type === 'category'
-    ? document.querySelectorAll('#categoriesContainer .category-block')
-    : document.querySelectorAll(`.category-table-body[data-category-id="${drag.taskCategoryId}"] tr:not(.add-task-row)`);
-  
-  targets.forEach(el => el.classList.remove('drag-before', 'drag-after'));
-  
-  let found = false;
-  targets.forEach(el => {
-    if (el === drag.source) return;
-    const r = el.getBoundingClientRect();
-    if (e.clientY >= r.top && e.clientY <= r.bottom) {
-      found = true;
-      el.classList.toggle('drag-before', e.clientY < r.top + r.height / 2);
-      el.classList.toggle('drag-after', e.clientY >= r.top + r.height / 2);
-    }
-  });
-  
-  if (!found) {
+  if (drag.type === 'category') {
+    // Categories: use drag-before/drag-after classes
+    const targets = document.querySelectorAll('#categoriesContainer .category-block');
     targets.forEach(el => el.classList.remove('drag-before', 'drag-after'));
+    let found = false;
+    targets.forEach(el => {
+      if (el === drag.source) return;
+      const r = el.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+        found = true;
+        el.classList.toggle('drag-before', e.clientY < r.top + r.height / 2);
+        el.classList.toggle('drag-after', e.clientY >= r.top + r.height / 2);
+      }
+    });
+    if (!found) {
+      targets.forEach(el => el.classList.remove('drag-before', 'drag-after'));
+    }
+  } else if (drag.dropLine) {
+    // Tasks: show a clean horizontal line between rows
+    const tbody = document.querySelector(`.category-table-body[data-category-id="${drag.taskCategoryId}"]`);
+    if (!tbody) { drag.dropLine.style.display = 'none'; return; }
+    const rows = tbody.querySelectorAll('tr:not(.add-task-row):not(.dragging)');
+    const tableEl = tbody.closest('.schedule-table') || tbody;
+    const tableRect = tableEl.getBoundingClientRect();
+    let lineY = null;
+    for (const row of rows) {
+      const r = row.getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) {
+        lineY = r.top;
+        break;
+      }
+    }
+    if (lineY === null && rows.length > 0) {
+      lineY = rows[rows.length - 1].getBoundingClientRect().bottom;
+    }
+    if (lineY !== null) {
+      drag.dropLine.style.display = 'block';
+      drag.dropLine.style.top = (lineY - 1.5) + 'px';
+      drag.dropLine.style.left = tableRect.left + 'px';
+      drag.dropLine.style.width = tableRect.width + 'px';
+    } else {
+      drag.dropLine.style.display = 'none';
+    }
   }
 }
 
@@ -894,14 +922,32 @@ function endDrag(e) {
   
   let target = null;
   let pos = 'before';
-  targets.forEach(el => {
-    if (el === drag.source) return;
-    const r = el.getBoundingClientRect();
-    if (e.clientY >= r.top && e.clientY <= r.bottom) {
-      target = el;
-      pos = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+  
+  if (drag.type === 'category') {
+    targets.forEach(el => {
+      if (el === drag.source) return;
+      const r = el.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+        target = el;
+        pos = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+      }
+    });
+  } else {
+    // For tasks: also handle drop before first / after last row
+    const rows = Array.from(targets).filter(el => el !== drag.source);
+    for (const row of rows) {
+      const r = row.getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) {
+        target = row;
+        pos = 'before';
+        break;
+      }
     }
-  });
+    if (!target && rows.length > 0) {
+      target = rows[rows.length - 1];
+      pos = 'after';
+    }
+  }
   
   if (target) {
     if (drag.type === 'category') {
@@ -944,6 +990,7 @@ function endDrag(e) {
 
 function cleanupDrag() {
   if (drag.ghost) { drag.ghost.remove(); drag.ghost = null; }
+  if (drag.dropLine) { drag.dropLine.remove(); drag.dropLine = null; }
   document.querySelectorAll('.category-block, .category-table-body tr').forEach(el => {
     el.classList.remove('dragging', 'drag-before', 'drag-after');
   });

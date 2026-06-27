@@ -1699,16 +1699,12 @@ body.dragging-active .category-table-body tr {
   transition: none !important;
 }
 
-/* --- CATEGORY DRAG: collapse all non-dragged categories --- */
-body.dragging-category .category-block:not(.dragging) .category-collapsible {
-  display: none !important;
-}
-
-body.dragging-category .category-block:not(.dragging) .category-title-container {
+/* --- CATEGORY DRAG: compact headers --- */
+body.dragging-category .category-title-container {
   padding: 10px 16px;
 }
 
-body.dragging-category .category-block:not(.dragging) {
+body.dragging-category .category-block {
   min-height: auto;
   border-color: #e2e8f0;
 }
@@ -1781,15 +1777,16 @@ body.dragging-category .category-block:not(.dragging) {
   position: relative;
 }
 
-/* --- DROP INDICATORS: task rows (box-shadow = no layout shift) --- */
-.category-table-body tr.drag-before td {
-  box-shadow: inset 0 2px 0 var(--primary), inset 2px 0 0 var(--primary) !important;
-  background-color: rgba(130, 180, 64, 0.12) !important;
-}
-
-.category-table-body tr.drag-after td {
-  box-shadow: inset 0 -2px 0 var(--primary), inset 2px 0 0 var(--primary) !important;
-  background-color: rgba(130, 180, 64, 0.12) !important;
+/* --- DROP INDICATOR: clean horizontal line between rows --- */
+.task-drop-line {
+  position: fixed;
+  z-index: 99999;
+  height: 4px;
+  background: var(--primary);
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow: 0 0 16px rgba(130, 180, 64, 0.6);
+  display: none;
 }
 
 /* INLINE EDIT INPUT */
