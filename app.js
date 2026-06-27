@@ -338,9 +338,6 @@ function updateRoleMode() {
     adminScheduleControls.classList.add('hidden');
     undoRedoHeader.classList.add('hidden');
     
-    document.getElementById('addCategoryFormContainer').classList.add('hidden');
-    document.getElementById('btnShowAddCategory').classList.remove('hidden');
-    
     if (state.activeTab === 'manage-team') {
       switchTab('full-schedule');
     }
@@ -536,12 +533,18 @@ function renderFullScheduleView() {
   const profile = getCurrentProfile();
   const isAdmin = profile && profile.role === 'Administrator';
   
+  if (isAdmin) {
+    container.appendChild(createCategoryAdder(0));
+  }
+  
   if (state.categories.length === 0) {
-    container.innerHTML = `<p class="no-tasks-text">Brak zdefiniowanych kategorii. Dodaj pierwszą jako Administrator.</p>`;
+    if (!isAdmin) {
+      container.innerHTML = `<p class="no-tasks-text">Brak zdefiniowanych kategorii.</p>`;
+    }
     return;
   }
   
-  state.categories.forEach(cat => {
+  state.categories.forEach((cat, idx) => {
     const block = document.createElement('div');
     block.className = 'category-block';
     block.setAttribute('data-category-id', cat.id);
@@ -631,6 +634,7 @@ function renderFullScheduleView() {
     
     block.innerHTML = headerHtml + `<div class="category-collapsible${isCollapsed ? ' cat-collapsed' : ''}">` + tableHtml + footerHtml + `</div>`;
     container.appendChild(block);
+    if (isAdmin) container.appendChild(createCategoryAdder(idx + 1));
     
     const tbody = block.querySelector('.category-table-body');
     tbody.innerHTML = '';
@@ -1215,7 +1219,7 @@ function deleteTask(categoryId, taskName) {
   showToast(`Usunięto zadanie "${taskName}"`);
 }
 
-function addCategory(name) {
+function addCategory(name, insertIndex = -1) {
   const cleanName = name.trim();
   if (!cleanName) return;
   
@@ -1232,10 +1236,67 @@ function addCategory(name) {
     tasks: []
   };
   
-  state.categories.push(newCat);
+  if (insertIndex >= 0 && insertIndex <= state.categories.length) {
+    state.categories.splice(insertIndex, 0, newCat);
+  } else {
+    state.categories.push(newCat);
+  }
   saveStateToStorage();
   renderFullScheduleView();
   showToast(`Dodano nową kategorię: "${cleanName}"`);
+}
+
+function createCategoryAdder(insertIndex) {
+  const div = document.createElement('div');
+  div.className = 'category-adder';
+  div.dataset.insertIndex = insertIndex;
+  div.innerHTML = `
+    <button class="btn-add-category-at" title="Dodaj kategorię w tym miejscu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+    <div class="category-adder-form hidden">
+      <input type="text" class="category-adder-input" placeholder="Nazwa kategorii..." autocomplete="off">
+      <button class="btn btn-success btn-sm category-adder-confirm">Dodaj</button>
+      <button class="btn btn-text btn-sm category-adder-cancel">Anuluj</button>
+    </div>
+  `;
+  
+  const btnAdd = div.querySelector('.btn-add-category-at');
+  const form = div.querySelector('.category-adder-form');
+  const input = div.querySelector('.category-adder-input');
+  const confirmBtn = div.querySelector('.category-adder-confirm');
+  const cancelBtn = div.querySelector('.category-adder-cancel');
+  
+  btnAdd.addEventListener('click', () => {
+    btnAdd.classList.add('hidden');
+    form.classList.remove('hidden');
+    input.focus();
+  });
+  
+  const doAdd = () => {
+    const name = input.value.trim();
+    if (!name) return;
+    const idx = parseInt(div.dataset.insertIndex);
+    addCategory(name, idx);
+  };
+  
+  const cancel = () => {
+    input.value = '';
+    form.classList.add('hidden');
+    btnAdd.classList.remove('hidden');
+  };
+  
+  confirmBtn.addEventListener('click', doAdd);
+  cancelBtn.addEventListener('click', cancel);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doAdd();
+    if (e.key === 'Escape') cancel();
+  });
+  
+  return div;
 }
 
 function deleteCategory(categoryId) {
@@ -2352,39 +2413,7 @@ function setupEventListeners() {
     }
   });
 
-  const btnShowAddCategory = document.getElementById('btnShowAddCategory');
-  const btnCancelCategory = document.getElementById('btnCancelCategory');
-  const addCategoryFormContainer = document.getElementById('addCategoryFormContainer');
-  
-  btnShowAddCategory.addEventListener('click', () => {
-    btnShowAddCategory.classList.add('hidden');
-    addCategoryFormContainer.classList.remove('hidden');
-    document.getElementById('newCategoryNameInput').focus();
-  });
-  
-  btnCancelCategory.addEventListener('click', () => {
-    addCategoryFormContainer.classList.add('hidden');
-    btnShowAddCategory.classList.remove('hidden');
-    document.getElementById('newCategoryNameInput').value = '';
-  });
-  
-  document.getElementById('btnSubmitCategory').addEventListener('click', () => {
-    const input = document.getElementById('newCategoryNameInput');
-    addCategory(input.value);
-    input.value = '';
-    addCategoryFormContainer.classList.add('hidden');
-    btnShowAddCategory.classList.remove('hidden');
-  });
-  
-  document.getElementById('newCategoryNameInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const input = document.getElementById('newCategoryNameInput');
-      addCategory(input.value);
-      input.value = '';
-      addCategoryFormContainer.classList.add('hidden');
-      btnShowAddCategory.classList.remove('hidden');
-    }
-  });
+  // Category adders are now rendered inline as .category-adder elements
 
   document.getElementById('btnUndo').addEventListener('click', undo);
   document.getElementById('btnRedo').addEventListener('click', redo);
