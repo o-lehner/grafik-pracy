@@ -550,12 +550,17 @@ body {
 
 .category-title-container {
   display: flex;
-  justify-content: center;
   align-items: center;
-  padding: 14px 20px;
+  gap: 4px;
+  padding: 14px 16px;
   background-color: #fafbfc;
   border-bottom: 1px solid var(--border-color);
   position: relative;
+}
+
+.category-title-container .category-title {
+  flex: 1;
+  text-align: center;
 }
 
 .category-title {
@@ -567,8 +572,6 @@ body {
 }
 
 .btn-delete-category {
-  position: absolute;
-  right: 16px;
   background: transparent;
   border: none;
   color: var(--text-light);
@@ -579,6 +582,8 @@ body {
   align-items: center;
   justify-content: center;
   transition: var(--transition);
+  flex-shrink: 0;
+  opacity: 0;
 }
 
 .btn-delete-category:hover {
@@ -589,10 +594,14 @@ body {
 /* Task Inline Deletion */
 .task-name-wrapper {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   width: 100%;
-  gap: 8px;
+  gap: 6px;
+}
+
+.task-name-wrapper > span:nth-child(2) {
+  flex: 1;
+  text-align: left;
 }
 
 .btn-delete-task {
@@ -1680,7 +1689,31 @@ input[type="text"]:focus {
 }
 
 
-/* DRAG & DROP - LINE INDICATORS */
+/* DRAG & DROP - CUSTOM MOUSE DRAG */
+body.dragging-active * {
+  user-select: none !important;
+}
+
+body.dragging-active .category-block,
+body.dragging-active .category-table-body tr {
+  transition: none !important;
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 999999;
+  padding: 6px 16px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  opacity: 0.92;
+}
+
 .category-block.dragging,
 .category-table-body tr.dragging {
   opacity: 0.25;
@@ -1707,10 +1740,6 @@ input[type="text"]:focus {
 .category-table-body tr.drag-after {
   box-shadow: inset 0 -3px 0 var(--primary);
   background-color: var(--primary-light) !important;
-}
-
-.category-title-container[draggable="true"]:hover {
-  background-color: #f1f5f9;
 }
 
 /* INLINE EDIT INPUT */
@@ -1750,6 +1779,7 @@ input[type="text"]:focus {
 }
 
 .category-title-container:hover .btn-edit-category,
+.category-title-container:hover .btn-delete-category,
 .cell-task-name:hover .btn-edit-task {
   opacity: 1;
 }
@@ -1810,58 +1840,68 @@ input[type="text"]:focus {
   font-size: 13px;
 }
 
-/* DRAG HANDLE AREA */
-.drag-handle-area {
+/* DRAG HANDLE AREA - SIX DOTS GRIP */
+.drag-handle-area.grip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 6px;
-  margin-left: 4px;
+  padding: 6px 8px;
   cursor: grab;
   color: var(--text-light);
-  font-size: 14px;
-  line-height: 1;
-  user-select: none;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: var(--transition);
   flex-shrink: 0;
-  opacity: 0.5;
+  opacity: 0.4;
+  touch-action: none;
 }
 
-.drag-handle-area:hover {
+.drag-handle-area.grip:hover {
   opacity: 1;
   color: var(--text-dark);
   background-color: #e2e8f0;
 }
 
-.category-title-container {
-  cursor: grab;
-}
-
-.category-title-container:active {
+.drag-handle-area.grip:active {
   cursor: grabbing;
+  opacity: 1;
+  color: var(--primary);
+  background-color: var(--primary-light);
 }
 
-.cell-task-name .drag-handle-area {
-  font-size: 12px;
-  padding: 2px 4px;
+.category-title-container {
+  cursor: default;
 }
 
-/* COLLAPSE CATEGORY */
+.cell-task-name .drag-handle-area.grip {
+  padding: 4px 6px;
+}
+
+.cell-task-name .drag-handle-area.grip svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* COLLAPSE CATEGORY - CHEVRON */
 .btn-collapse-category {
   background: transparent;
   border: none;
   color: var(--text-light);
   cursor: pointer;
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: var(--transition);
-  font-size: 10px;
-  line-height: 1;
   flex-shrink: 0;
+}
+
+.btn-collapse-category .chevron-icon {
+  transition: transform 0.2s ease;
+}
+
+.category-title-container.collapsed .btn-collapse-category .chevron-icon {
+  transform: rotate(-90deg);
 }
 
 .btn-collapse-category:hover {
@@ -1869,8 +1909,9 @@ input[type="text"]:focus {
   background-color: #e2e8f0;
 }
 
-.category-title-container.collapsed .btn-collapse-category {
-  color: var(--text-medium);
+.btn-collapse-category:active {
+  color: var(--primary);
+  background-color: var(--primary-light);
 }
 
 /* Hidden Class Utility */
