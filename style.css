@@ -2097,6 +2097,37 @@ body.dragging-category .category-block {
   display: none !important;
 }
 
+/* Category collapse animation */
+.category-collapsible {
+  overflow: hidden;
+  transition: max-height 0.35s ease, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+  max-height: 5000px;
+  opacity: 1;
+}
+
+.category-collapsible.cat-collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.category-collapsible.cat-collapsed .category-footer {
+  display: none;
+}
+
+/* Drop highlight for category reorder */
+@keyframes drop-highlight {
+  0%   { background-color: rgba(130, 180, 64, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.category-block.drop-highlight .category-title-container {
+  animation: drop-highlight 0.6s ease-out;
+}
+
 
 /* TOAST NOTIFICATIONS */
 .toast-container {

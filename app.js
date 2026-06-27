@@ -140,12 +140,15 @@ let state = {
 let collapsedCategories = new Set();
 
 function toggleCategoryCollapse(categoryId) {
+  const el = document.querySelector(`.category-block[data-category-id="${categoryId}"] .category-collapsible`);
   if (collapsedCategories.has(categoryId)) {
     collapsedCategories.delete(categoryId);
+    if (el) el.classList.remove('cat-collapsed');
   } else {
     collapsedCategories.add(categoryId);
+    if (el) el.classList.add('cat-collapsed');
   }
-  renderFullScheduleView();
+  // Don't re-render for toggle — just animate
 }
 
 // --- UNDO / REDO SYSTEM (200 actions) ---
@@ -621,7 +624,7 @@ function renderFullScheduleView() {
       `;
     }
     
-    block.innerHTML = headerHtml + `<div class="category-collapsible${isCollapsed ? ' hidden' : ''}">` + tableHtml + footerHtml + `</div>`;
+    block.innerHTML = headerHtml + `<div class="category-collapsible${isCollapsed ? ' cat-collapsed' : ''}">` + tableHtml + footerHtml + `</div>`;
     container.appendChild(block);
     
     const tbody = block.querySelector('.category-table-body');
@@ -905,7 +908,7 @@ function initDrag(element, type, sourceId, sourceName) {
     // Collapse ALL categories (including dragged one) so only headers are visible
     document.querySelectorAll('.category-block .category-collapsible').forEach(el => {
       el.dataset.dragForceHidden = '1';
-      el.classList.add('hidden');
+      el.classList.add('cat-collapsed');
     });
   }
   
@@ -1044,6 +1047,8 @@ function endDrag(e) {
         state.categories.splice(insertAt, 0, removed);
         recordAction();
         saveStateToStorage();
+        drag.source.classList.add('drop-highlight');
+        setTimeout(() => drag.source.classList.remove('drop-highlight'), 700);
       }
     } else {
       const draggedTask = drag.source.getAttribute('data-task-name');
@@ -1079,12 +1084,11 @@ function cleanupDrag() {
   // Restore categories that were force-collapsed during drag
   document.querySelectorAll('.category-collapsible[data-drag-force-hidden]').forEach(el => {
     delete el.dataset.dragForceHidden;
-    // Only remove hidden class if the category wasn't already collapsed
     const block = el.closest('.category-block');
     if (block) {
       const id = block.getAttribute('data-category-id');
       if (id && !collapsedCategories.has(id)) {
-        el.classList.remove('hidden');
+        el.classList.remove('cat-collapsed');
       }
     }
   });
@@ -1303,9 +1307,14 @@ function renderTeamManagementView() {
   container.innerHTML = '';
   
   const searchVal = document.getElementById('searchMemberInput').value.toLowerCase();
-  const filteredEmployees = state.employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchVal)
-  );
+  const filteredEmployees = state.employees
+    .filter(emp => emp.name.toLowerCase().includes(searchVal))
+    .sort((a, b) => {
+      if (a.role !== b.role) {
+        return a.role === 'Administrator' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name, 'pl');
+    });
   
   if (filteredEmployees.length === 0) {
     container.innerHTML = `<p class="no-tasks-text">Brak pasujących osób w zespole</p>`;
