@@ -52,7 +52,15 @@ const DEFAULT_PRESETS = [
 
 const DAYS_OF_WEEK = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
 
-// --- WEEK HELPERS ---
+// --- WEEK HELPERS (local timezone, YYYY-MM-DD strings) ---
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toLocalDateStr(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function getWeekStart(date) {
   const d = new Date(date);
   const day = d.getDay();
@@ -62,34 +70,47 @@ function getWeekStart(date) {
   return d;
 }
 
-function getWeekStartISO(date) {
-  return getWeekStart(date).toISOString().slice(0, 10);
+function getWeekStartStr(date) {
+  return toLocalDateStr(getWeekStart(date));
 }
 
-function pad(n) {
-  return String(n).padStart(2, '0');
+function addDays(ymd, n) {
+  const d = new Date(ymd + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
 }
 
-function formatISOToDisplay(isoStr) {
-  const d = new Date(isoStr + 'T00:00:00');
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+function formatYMD(ymd) {
+  const p = ymd.split('-').map(Number);
+  return `${pad(p[2])}.${pad(p[1])}`;
 }
 
 function updateWeekDisplay() {
-  const start = new Date(state.viewWeekStart + 'T00:00:00');
-  const end = new Date(start);
-  end.setDate(start.getDate() + 4);
+  const start = state.viewWeekStart;
+  const end = addDays(start, 4);
   const el = document.getElementById('weekRange');
-  if (el) el.textContent = `${formatISOToDisplay(state.viewWeekStart)} – ${formatISOToDisplay(end.toISOString().slice(0, 10))}`;
+  if (el) el.textContent = `${formatYMD(start)} – ${formatYMD(end)}`;
 }
 
 function navigateWeek(direction) {
-  const d = new Date(state.viewWeekStart + 'T00:00:00');
-  d.setDate(d.getDate() + direction * 7);
-  state.viewWeekStart = getWeekStartISO(d);
+  state.viewWeekStart = getWeekStartStr(addDays(state.viewWeekStart, direction * 7));
   localStorage.setItem('bldsrv_view_week', state.viewWeekStart);
   updateWeekDisplay();
   renderActiveView();
+}
+
+function initWeek() {
+  const saved = localStorage.getItem('bldsrv_view_week');
+  if (saved) {
+    const d = new Date(saved + 'T00:00:00');
+    state.viewWeekStart = d.getDay() === 1 ? saved : getWeekStartStr(new Date());
+  } else {
+    state.viewWeekStart = getWeekStartStr(new Date());
+  }
+  const currentMonday = getWeekStartStr(new Date());
+  state.shifts.forEach(s => {
+    if (!s.weekStart) s.weekStart = currentMonday;
+  });
 }
 
 // --- STATE ---
@@ -240,14 +261,7 @@ function initApp() {
   state.presets = JSON.parse(localStorage.getItem('bldsrv_presets')) || DEFAULT_PRESETS;
   
   migrateOldNaming();
-
-  state.shifts.forEach(s => {
-    if (!s.weekStart) s.weekStart = getWeekStartISO(new Date());
-  });
-
-  const savedWeek = localStorage.getItem('bldsrv_view_week');
-  state.viewWeekStart = savedWeek || getWeekStartISO(new Date());
-
+  initWeek();
   saveStateToStorage();
 
   const savedProfileId = localStorage.getItem('bldsrv_active_profile');
