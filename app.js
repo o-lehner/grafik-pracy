@@ -481,12 +481,18 @@ function renderFullScheduleView() {
       `;
     }
     
+    const catIndex = state.categories.indexOf(cat);
+    const isFirst = catIndex === 0;
+    const isLast = catIndex === state.categories.length - 1;
     const isCollapsed = collapsedCategories.has(cat.id);
     const headerHtml = `
       <div class="category-title-container ${isCollapsed ? 'collapsed' : ''}">
         <button class="btn-collapse-category" onclick="toggleCategoryCollapse('${cat.id}')" title="${isCollapsed ? 'Rozwiń' : 'Zwiń'}">${isCollapsed ? '▶' : '▼'}</button>
-        <span class="drag-handle" title="Przeciągnij aby przenieść">⠿</span>
         <span class="category-title">${cat.name}</span>
+        <span class="move-buttons">
+          <button class="btn-move-up" onclick="moveCategory('${cat.id}', -1)" ${isFirst ? 'disabled' : ''} title="Przenieś wyżej">▲</button>
+          <button class="btn-move-down" onclick="moveCategory('${cat.id}', 1)" ${isLast ? 'disabled' : ''} title="Przenieś niżej">▼</button>
+        </span>
         ${editCategoryBtn}
         ${deleteCategoryBtn}
       </div>
@@ -552,13 +558,16 @@ function renderFullScheduleView() {
         }
     });
     
-    cat.tasks.forEach(task => {
+    cat.tasks.forEach((task, taskIdx) => {
       const tr = document.createElement('tr');
       tr.setAttribute('data-task-name', task);
       tr.setAttribute('data-category-id', cat.id);
       
       const tdTask = document.createElement('td');
       tdTask.className = 'cell-task-name';
+      
+      const isFirstTask = taskIdx === 0;
+      const isLastTask = taskIdx === cat.tasks.length - 1;
       
       let deleteTaskBtn = '';
       if (isAdmin) {
@@ -586,13 +595,26 @@ function renderFullScheduleView() {
       
       tdTask.innerHTML = `
         <div class="task-name-wrapper">
-          <span class="drag-handle" title="Przeciągnij aby przenieść">⠿</span>
           <span>${task}</span>
+          <span class="move-buttons">
+            <button class="btn-move-up" data-category-id="${cat.id}" data-task-name="${task.replace(/'/g, '&#39;')}" data-direction="-1" ${isFirstTask ? 'disabled' : ''} title="Przenieś wyżej">▲</button>
+            <button class="btn-move-down" data-category-id="${cat.id}" data-task-name="${task.replace(/'/g, '&#39;')}" data-direction="1" ${isLastTask ? 'disabled' : ''} title="Przenieś niżej">▼</button>
+          </span>
           ${editTaskBtn}
           ${deleteTaskBtn}
         </div>
       `;
       tr.appendChild(tdTask);
+      
+      // Move buttons event listeners
+      tdTask.querySelectorAll('.btn-move-up, .btn-move-down').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cid = btn.getAttribute('data-category-id');
+          const tname = btn.getAttribute('data-task-name');
+          const dir = parseInt(btn.getAttribute('data-direction'));
+          moveTask(cid, tname, dir);
+        });
+      });
       
       DAYS_OF_WEEK.forEach((day, dayIndex) => {
         const tdDay = document.createElement('td');
@@ -763,6 +785,34 @@ function renderFullScheduleView() {
   state.categories.forEach(cat => enableTaskDragDrop(cat.id));
 }
 
+// --- MOVE CATEGORIES & TASKS (ARROW BUTTONS) ---
+function moveCategory(categoryId, direction) {
+  const index = state.categories.findIndex(c => c.id === categoryId);
+  if (index === -1) return;
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= state.categories.length) return;
+  recordAction();
+  const [removed] = state.categories.splice(index, 1);
+  state.categories.splice(newIndex, 0, removed);
+  saveStateToStorage();
+  renderFullScheduleView();
+}
+
+function moveTask(categoryId, taskName, direction) {
+  const catIndex = state.categories.findIndex(c => c.id === categoryId);
+  if (catIndex === -1) return;
+  const tasks = state.categories[catIndex].tasks;
+  const index = tasks.indexOf(taskName);
+  if (index === -1) return;
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= tasks.length) return;
+  recordAction();
+  const [removed] = tasks.splice(index, 1);
+  tasks.splice(newIndex, 0, removed);
+  saveStateToStorage();
+  renderFullScheduleView();
+}
+
 // --- DRAG & DROP ---
 function getDropPosition(e) {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -818,14 +868,21 @@ function enableCategoryDragDrop() {
       if (draggedIndex === -1 || targetIndex === -1) return;
       
       const pos = getDropPosition(e);
-      let insertAt = pos === 'after' ? targetIndex + 1 : targetIndex;
-      if (draggedIndex < insertAt) insertAt--;
+      const draggedBlock = container.querySelector(`.category-block[data-category-id="${draggedId}"]`);
+      if (!draggedBlock) return;
       
+      const containerEl = container;
+      if (pos === 'after' && block.nextSibling) {
+        containerEl.insertBefore(draggedBlock, block.nextSibling);
+      } else {
+        containerEl.insertBefore(draggedBlock, block);
+      }
+      
+      const insertAt = Array.from(containerEl.children).indexOf(draggedBlock);
       const [removed] = state.categories.splice(draggedIndex, 1);
       state.categories.splice(insertAt, 0, removed);
       recordAction();
       saveStateToStorage();
-      renderFullScheduleView();
     });
   });
 }
@@ -833,10 +890,9 @@ function enableCategoryDragDrop() {
 function enableTaskDragDrop(categoryId) {
   const tbody = document.querySelector(`.category-table-body[data-category-id="${categoryId}"]`);
   if (!tbody) return;
-  const rows = tbody.querySelectorAll('tr');
+  const rows = tbody.querySelectorAll('tr:not(.add-task-row)');
   
   rows.forEach(row => {
-    if (row.classList.contains('add-task-row')) return;
     row.setAttribute('draggable', 'true');
     row.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', JSON.stringify({
@@ -892,15 +948,21 @@ function enableTaskDragDrop(categoryId) {
       const targetIndex = tasks.indexOf(targetTask);
       if (draggedIndex === -1 || targetIndex === -1) return;
       
-      const pos = getDropPosition(e);
-      let insertAt = pos === 'after' ? targetIndex + 1 : targetIndex;
-      if (draggedIndex < insertAt) insertAt--;
+      const draggedRow = tbody.querySelector(`tr[data-task-name="${draggedTask.replace(/"/g, '&quot;')}"]`);
+      if (!draggedRow) return;
       
+      const pos = getDropPosition(e);
+      if (pos === 'after' && row.nextSibling) {
+        tbody.insertBefore(draggedRow, row.nextSibling);
+      } else {
+        tbody.insertBefore(draggedRow, row);
+      }
+      
+      const insertAt = Array.from(tbody.querySelectorAll('tr:not(.add-task-row)')).indexOf(draggedRow);
       const [removed] = tasks.splice(draggedIndex, 1);
       tasks.splice(insertAt, 0, removed);
       recordAction();
       saveStateToStorage();
-      renderFullScheduleView();
     });
   });
 }

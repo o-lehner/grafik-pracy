@@ -1830,6 +1830,51 @@ input[type="text"]:focus {
   font-size: 13px;
 }
 
+/* MOVE BUTTONS */
+.move-buttons {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.btn-move-up,
+.btn-move-down {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.btn-move-up:hover:not(:disabled),
+.btn-move-down:hover:not(:disabled) {
+  color: var(--text-dark);
+  background-color: #e2e8f0;
+}
+
+.btn-move-up:disabled,
+.btn-move-down:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.category-title-container .move-buttons {
+  margin: 0 4px;
+}
+
+.cell-task-name .move-buttons .btn-move-up,
+.cell-task-name .move-buttons .btn-move-down {
+  font-size: 8px;
+  padding: 1px 3px;
+}
+
 /* COLLAPSE CATEGORY */
 .btn-collapse-category {
   background: transparent;
