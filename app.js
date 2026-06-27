@@ -819,17 +819,44 @@ function initDrag(element, type, sourceId, sourceName) {
   document.body.classList.add('dragging-active');
   element.classList.add('dragging');
   
+  if (type === 'category') {
+    document.body.classList.add('dragging-category');
+  }
+  
   const ghost = document.createElement('div');
   ghost.className = 'drag-ghost';
-  ghost.textContent = sourceName;
+  
+  if (type === 'task') {
+    ghost.innerHTML = `
+      <span class="drag-ghost-row">
+        <span class="drag-ghost-grip">≡</span>
+        <span class="drag-ghost-name">${sourceName}</span>
+        <span class="drag-ghost-cells">
+          <span></span><span></span><span></span><span></span><span></span>
+        </span>
+      </span>
+    `;
+  } else {
+    ghost.textContent = sourceName;
+  }
+  
   document.body.appendChild(ghost);
   drag.ghost = ghost;
 }
 
 function moveDragGhost(e) {
   if (!drag.ghost) return;
-  drag.ghost.style.left = (e.clientX + 12) + 'px';
-  drag.ghost.style.top = (e.clientY - 18) + 'px';
+  drag.ghost.style.left = (e.clientX + 16) + 'px';
+  drag.ghost.style.top = (e.clientY - 20) + 'px';
+  
+  // Auto-scroll when near viewport edges
+  const scrollMargin = 50;
+  const scrollSpeed = 12;
+  if (e.clientY < scrollMargin) {
+    window.scrollBy(0, -(scrollMargin - e.clientY) * 0.4);
+  } else if (e.clientY > window.innerHeight - scrollMargin) {
+    window.scrollBy(0, (e.clientY - (window.innerHeight - scrollMargin)) * 0.4);
+  }
   
   const targets = drag.type === 'category'
     ? document.querySelectorAll('#categoriesContainer .category-block')
@@ -915,7 +942,7 @@ function cleanupDrag() {
   document.querySelectorAll('.category-block, .category-table-body tr').forEach(el => {
     el.classList.remove('dragging', 'drag-before', 'drag-after');
   });
-  document.body.classList.remove('dragging-active');
+  document.body.classList.remove('dragging-active', 'dragging-category');
   drag.active = false;
   drag.source = null;
   drag.type = '';
