@@ -908,6 +908,7 @@ function initDrag(element, type, sourceId, sourceName) {
     // Collapse ALL categories (including dragged one) so only headers are visible
     document.querySelectorAll('.category-block .category-collapsible').forEach(el => {
       el.dataset.dragForceHidden = '1';
+      el.style.setProperty('--content-height', el.scrollHeight + 'px');
       el.classList.add('cat-collapsed');
     });
   }
@@ -1074,6 +1075,8 @@ function endDrag(e) {
           tasks.splice(insertAt, 0, removed);
           recordAction();
           saveStateToStorage();
+          drag.source.classList.add('drop-highlight');
+          setTimeout(() => drag.source.classList.remove('drop-highlight'), 800);
         }
       }
     }
