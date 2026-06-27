@@ -764,12 +764,6 @@ function renderFullScheduleView() {
 }
 
 // --- DRAG & DROP ---
-function isDragHandle(e) {
-  const handle = e.target.closest('.drag-handle');
-  const block = e.target.closest('.category-block, tr');
-  return handle && block;
-}
-
 function getDropPosition(e) {
   const rect = e.currentTarget.getBoundingClientRect();
   const y = e.clientY - rect.top;
@@ -783,12 +777,12 @@ function enableCategoryDragDrop() {
   blocks.forEach(block => {
     block.setAttribute('draggable', 'true');
     block.addEventListener('dragstart', (e) => {
-      if (!isDragHandle(e)) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', block.getAttribute('data-category-id'));
       e.dataTransfer.effectAllowed = 'move';
       block.classList.add('dragging');
       const ghost = document.createElement('div');
-      ghost.textContent = block.querySelector('.category-title').textContent;
+      const titleEl = block.querySelector('.category-title');
+      ghost.textContent = titleEl ? titleEl.textContent : 'Kategoria';
       ghost.style.cssText = 'padding:8px 16px;background:#82b440;color:#fff;border-radius:8px;font-weight:600;font-size:13px;';
       document.body.appendChild(ghost);
       e.dataTransfer.setDragImage(ghost, 80, 20);
@@ -824,15 +818,12 @@ function enableCategoryDragDrop() {
       if (draggedIndex === -1 || targetIndex === -1) return;
       
       const pos = getDropPosition(e);
-      let insertAt = targetIndex;
-      if (pos === 'after') insertAt = targetIndex + 1;
-      if (draggedIndex < targetIndex && pos === 'after') insertAt--;
-      if (draggedIndex > targetIndex && pos === 'before') insertAt = targetIndex;
-      if (draggedIndex < targetIndex && pos === 'before') insertAt = targetIndex - 1;
+      let insertAt = pos === 'after' ? targetIndex + 1 : targetIndex;
+      if (draggedIndex < insertAt) insertAt--;
       
-      recordAction();
       const [removed] = state.categories.splice(draggedIndex, 1);
       state.categories.splice(insertAt, 0, removed);
+      recordAction();
       saveStateToStorage();
       renderFullScheduleView();
     });
@@ -848,7 +839,6 @@ function enableTaskDragDrop(categoryId) {
     if (row.classList.contains('add-task-row')) return;
     row.setAttribute('draggable', 'true');
     row.addEventListener('dragstart', (e) => {
-      if (!isDragHandle(e)) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', JSON.stringify({
         categoryId: categoryId,
         taskName: row.getAttribute('data-task-name')
@@ -856,7 +846,7 @@ function enableTaskDragDrop(categoryId) {
       e.dataTransfer.effectAllowed = 'move';
       row.classList.add('dragging');
       const ghost = document.createElement('div');
-      ghost.textContent = row.getAttribute('data-task-name');
+      ghost.textContent = row.getAttribute('data-task-name') || 'Zadanie';
       ghost.style.cssText = 'padding:6px 12px;background:#82b440;color:#fff;border-radius:6px;font-weight:600;font-size:12px;';
       document.body.appendChild(ghost);
       e.dataTransfer.setDragImage(ghost, 60, 15);
@@ -897,20 +887,18 @@ function enableTaskDragDrop(categoryId) {
       const catIndex = state.categories.findIndex(c => c.id === categoryId);
       if (catIndex === -1) return;
       
-      const draggedIndex = state.categories[catIndex].tasks.indexOf(draggedTask);
-      const targetIndex = state.categories[catIndex].tasks.indexOf(targetTask);
+      const tasks = state.categories[catIndex].tasks;
+      const draggedIndex = tasks.indexOf(draggedTask);
+      const targetIndex = tasks.indexOf(targetTask);
       if (draggedIndex === -1 || targetIndex === -1) return;
       
       const pos = getDropPosition(e);
-      let insertAt = targetIndex;
-      if (pos === 'after') insertAt = targetIndex + 1;
-      if (draggedIndex < targetIndex && pos === 'after') insertAt--;
-      if (draggedIndex > targetIndex && pos === 'before') insertAt = targetIndex;
-      if (draggedIndex < targetIndex && pos === 'before') insertAt = targetIndex - 1;
+      let insertAt = pos === 'after' ? targetIndex + 1 : targetIndex;
+      if (draggedIndex < insertAt) insertAt--;
       
+      const [removed] = tasks.splice(draggedIndex, 1);
+      tasks.splice(insertAt, 0, removed);
       recordAction();
-      const [removed] = state.categories[catIndex].tasks.splice(draggedIndex, 1);
-      state.categories[catIndex].tasks.splice(insertAt, 0, removed);
       saveStateToStorage();
       renderFullScheduleView();
     });
