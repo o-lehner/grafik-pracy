@@ -481,20 +481,14 @@ function renderFullScheduleView() {
       `;
     }
     
-    const catIndex = state.categories.indexOf(cat);
-    const isFirst = catIndex === 0;
-    const isLast = catIndex === state.categories.length - 1;
     const isCollapsed = collapsedCategories.has(cat.id);
     const headerHtml = `
       <div class="category-title-container ${isCollapsed ? 'collapsed' : ''}">
         <button class="btn-collapse-category" onclick="toggleCategoryCollapse('${cat.id}')" title="${isCollapsed ? 'Rozwiń' : 'Zwiń'}">${isCollapsed ? '▶' : '▼'}</button>
         <span class="category-title">${cat.name}</span>
-        <span class="move-buttons">
-          <button class="btn-move-up" onclick="moveCategory('${cat.id}', -1)" ${isFirst ? 'disabled' : ''} title="Przenieś wyżej">▲</button>
-          <button class="btn-move-down" onclick="moveCategory('${cat.id}', 1)" ${isLast ? 'disabled' : ''} title="Przenieś niżej">▼</button>
-        </span>
         ${editCategoryBtn}
         ${deleteCategoryBtn}
+        <span class="drag-handle-area" title="Przeciągnij aby przenieść">⠿</span>
       </div>
     `;
     
@@ -566,9 +560,6 @@ function renderFullScheduleView() {
       const tdTask = document.createElement('td');
       tdTask.className = 'cell-task-name';
       
-      const isFirstTask = taskIdx === 0;
-      const isLastTask = taskIdx === cat.tasks.length - 1;
-      
       let deleteTaskBtn = '';
       if (isAdmin) {
         deleteTaskBtn = `
@@ -596,25 +587,12 @@ function renderFullScheduleView() {
       tdTask.innerHTML = `
         <div class="task-name-wrapper">
           <span>${task}</span>
-          <span class="move-buttons">
-            <button class="btn-move-up" data-category-id="${cat.id}" data-task-name="${task.replace(/'/g, '&#39;')}" data-direction="-1" ${isFirstTask ? 'disabled' : ''} title="Przenieś wyżej">▲</button>
-            <button class="btn-move-down" data-category-id="${cat.id}" data-task-name="${task.replace(/'/g, '&#39;')}" data-direction="1" ${isLastTask ? 'disabled' : ''} title="Przenieś niżej">▼</button>
-          </span>
           ${editTaskBtn}
           ${deleteTaskBtn}
+          <span class="drag-handle-area" title="Przeciągnij aby przenieść">⠿</span>
         </div>
       `;
       tr.appendChild(tdTask);
-      
-      // Move buttons event listeners
-      tdTask.querySelectorAll('.btn-move-up, .btn-move-down').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const cid = btn.getAttribute('data-category-id');
-          const tname = btn.getAttribute('data-task-name');
-          const dir = parseInt(btn.getAttribute('data-direction'));
-          moveTask(cid, tname, dir);
-        });
-      });
       
       DAYS_OF_WEEK.forEach((day, dayIndex) => {
         const tdDay = document.createElement('td');
@@ -814,42 +792,43 @@ function moveTask(categoryId, taskName, direction) {
 }
 
 // --- DRAG & DROP ---
-function getDropPosition(e) {
-  const rect = e.currentTarget.getBoundingClientRect();
-  const y = e.clientY - rect.top;
-  return y < rect.height / 2 ? 'before' : 'after';
-}
+let dragData = null;
 
 function enableCategoryDragDrop() {
   const container = document.getElementById('categoriesContainer');
-  const blocks = container.querySelectorAll('.category-block');
   
-  blocks.forEach(block => {
-    block.setAttribute('draggable', 'true');
-    block.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', block.getAttribute('data-category-id'));
+  container.querySelectorAll('.category-title-container').forEach(header => {
+    header.setAttribute('draggable', 'true');
+    
+    header.addEventListener('dragstart', (e) => {
+      const block = header.closest('.category-block');
+      const id = block.getAttribute('data-category-id');
+      dragData = { type: 'category', id };
       e.dataTransfer.effectAllowed = 'move';
       block.classList.add('dragging');
       const ghost = document.createElement('div');
       const titleEl = block.querySelector('.category-title');
       ghost.textContent = titleEl ? titleEl.textContent : 'Kategoria';
-      ghost.style.cssText = 'padding:8px 16px;background:#82b440;color:#fff;border-radius:8px;font-weight:600;font-size:13px;';
+      ghost.style.cssText = 'padding:6px 16px;background:#82b440;color:#fff;border-radius:6px;font-weight:600;font-size:12px;white-space:nowrap';
       document.body.appendChild(ghost);
-      e.dataTransfer.setDragImage(ghost, 80, 20);
-      setTimeout(() => ghost.remove(), 0);
+      e.dataTransfer.setDragImage(ghost, 100, 16);
+      requestAnimationFrame(() => ghost.remove());
     });
     
-    block.addEventListener('dragend', () => {
-      block.classList.remove('dragging');
-      container.querySelectorAll('.category-block').forEach(b => b.classList.remove('drag-before', 'drag-after'));
+    header.addEventListener('dragend', () => {
+      container.querySelectorAll('.category-block').forEach(b => b.classList.remove('dragging', 'drag-before', 'drag-after'));
+      dragData = null;
     });
-    
+  });
+  
+  container.querySelectorAll('.category-block').forEach(block => {
     block.addEventListener('dragover', (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const pos = getDropPosition(e);
-      block.classList.toggle('drag-before', pos === 'before');
-      block.classList.toggle('drag-after', pos === 'after');
+      if (!dragData || dragData.type !== 'category') return;
+      const rect = block.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      block.classList.toggle('drag-before', y < rect.height / 2);
+      block.classList.toggle('drag-after', y >= rect.height / 2);
     });
     
     block.addEventListener('dragleave', () => {
@@ -859,26 +838,23 @@ function enableCategoryDragDrop() {
     block.addEventListener('drop', (e) => {
       e.preventDefault();
       block.classList.remove('drag-before', 'drag-after');
-      const draggedId = e.dataTransfer.getData('text/plain');
+      if (!dragData || dragData.type !== 'category') return;
+      const draggedId = dragData.id;
       const targetId = block.getAttribute('data-category-id');
       if (draggedId === targetId) return;
       
-      const draggedIndex = state.categories.findIndex(c => c.id === draggedId);
-      const targetIndex = state.categories.findIndex(c => c.id === targetId);
-      if (draggedIndex === -1 || targetIndex === -1) return;
-      
-      const pos = getDropPosition(e);
       const draggedBlock = container.querySelector(`.category-block[data-category-id="${draggedId}"]`);
       if (!draggedBlock) return;
       
-      const containerEl = container;
-      if (pos === 'after' && block.nextSibling) {
-        containerEl.insertBefore(draggedBlock, block.nextSibling);
-      } else {
-        containerEl.insertBefore(draggedBlock, block);
-      }
+      const rect = block.getBoundingClientRect();
+      const pos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
       
-      const insertAt = Array.from(containerEl.children).indexOf(draggedBlock);
+      pos === 'after' && block.nextSibling
+        ? container.insertBefore(draggedBlock, block.nextSibling)
+        : container.insertBefore(draggedBlock, block);
+      
+      const draggedIndex = state.categories.findIndex(c => c.id === draggedId);
+      const insertAt = Array.from(container.children).indexOf(draggedBlock);
       const [removed] = state.categories.splice(draggedIndex, 1);
       state.categories.splice(insertAt, 0, removed);
       recordAction();
@@ -890,36 +866,38 @@ function enableCategoryDragDrop() {
 function enableTaskDragDrop(categoryId) {
   const tbody = document.querySelector(`.category-table-body[data-category-id="${categoryId}"]`);
   if (!tbody) return;
-  const rows = tbody.querySelectorAll('tr:not(.add-task-row)');
   
-  rows.forEach(row => {
-    row.setAttribute('draggable', 'true');
-    row.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', JSON.stringify({
-        categoryId: categoryId,
-        taskName: row.getAttribute('data-task-name')
-      }));
+  tbody.querySelectorAll('.task-name-wrapper').forEach(wrapper => {
+    wrapper.setAttribute('draggable', 'true');
+    
+    wrapper.addEventListener('dragstart', (e) => {
+      const row = wrapper.closest('tr');
+      if (row.classList.contains('add-task-row')) { e.preventDefault(); return; }
+      dragData = { type: 'task', categoryId, taskName: row.getAttribute('data-task-name') };
       e.dataTransfer.effectAllowed = 'move';
       row.classList.add('dragging');
       const ghost = document.createElement('div');
       ghost.textContent = row.getAttribute('data-task-name') || 'Zadanie';
-      ghost.style.cssText = 'padding:6px 12px;background:#82b440;color:#fff;border-radius:6px;font-weight:600;font-size:12px;';
+      ghost.style.cssText = 'padding:4px 12px;background:#82b440;color:#fff;border-radius:4px;font-weight:600;font-size:11px;white-space:nowrap';
       document.body.appendChild(ghost);
-      e.dataTransfer.setDragImage(ghost, 60, 15);
-      setTimeout(() => ghost.remove(), 0);
+      e.dataTransfer.setDragImage(ghost, 80, 14);
+      requestAnimationFrame(() => ghost.remove());
     });
     
-    row.addEventListener('dragend', () => {
-      row.classList.remove('dragging');
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-before', 'drag-after'));
+    wrapper.addEventListener('dragend', () => {
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('dragging', 'drag-before', 'drag-after'));
+      if (dragData && dragData.type === 'task' && dragData.categoryId === categoryId) dragData = null;
     });
-    
+  });
+  
+  tbody.querySelectorAll('tr:not(.add-task-row)').forEach(row => {
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const pos = getDropPosition(e);
-      row.classList.toggle('drag-before', pos === 'before');
-      row.classList.toggle('drag-after', pos === 'after');
+      if (!dragData || dragData.type !== 'task' || dragData.categoryId !== categoryId) return;
+      const rect = row.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      row.classList.toggle('drag-before', y < rect.height / 2);
+      row.classList.toggle('drag-after', y >= rect.height / 2);
     });
     
     row.addEventListener('dragleave', () => {
@@ -929,35 +907,26 @@ function enableTaskDragDrop(categoryId) {
     row.addEventListener('drop', (e) => {
       e.preventDefault();
       row.classList.remove('drag-before', 'drag-after');
+      if (!dragData || dragData.type !== 'task' || dragData.categoryId !== categoryId) return;
       
-      let data;
-      try {
-        data = JSON.parse(e.dataTransfer.getData('text/plain'));
-      } catch { return; }
-      
-      if (data.categoryId !== categoryId) return;
-      const draggedTask = data.taskName;
+      const draggedTask = dragData.taskName;
       const targetTask = row.getAttribute('data-task-name');
       if (draggedTask === targetTask) return;
       
-      const catIndex = state.categories.findIndex(c => c.id === categoryId);
-      if (catIndex === -1) return;
-      
-      const tasks = state.categories[catIndex].tasks;
-      const draggedIndex = tasks.indexOf(draggedTask);
-      const targetIndex = tasks.indexOf(targetTask);
-      if (draggedIndex === -1 || targetIndex === -1) return;
-      
-      const draggedRow = tbody.querySelector(`tr[data-task-name="${draggedTask.replace(/"/g, '&quot;')}"]`);
+      const draggedRow = tbody.querySelector(`tr[data-task-name="${CSS.escape(draggedTask)}"]`);
       if (!draggedRow) return;
       
-      const pos = getDropPosition(e);
-      if (pos === 'after' && row.nextSibling) {
-        tbody.insertBefore(draggedRow, row.nextSibling);
-      } else {
-        tbody.insertBefore(draggedRow, row);
-      }
+      const rect = row.getBoundingClientRect();
+      const pos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after';
       
+      pos === 'after' && row.nextSibling
+        ? tbody.insertBefore(draggedRow, row.nextSibling)
+        : tbody.insertBefore(draggedRow, row);
+      
+      const catIndex = state.categories.findIndex(c => c.id === categoryId);
+      if (catIndex === -1) return;
+      const tasks = state.categories[catIndex].tasks;
+      const draggedIndex = tasks.indexOf(draggedTask);
       const insertAt = Array.from(tbody.querySelectorAll('tr:not(.add-task-row)')).indexOf(draggedRow);
       const [removed] = tasks.splice(draggedIndex, 1);
       tasks.splice(insertAt, 0, removed);
@@ -1095,7 +1064,7 @@ function editTaskName(categoryId, taskName) {
   if (catIndex === -1) return;
   const row = document.querySelector(`tr[data-category-id="${categoryId}"][data-task-name="${escapeHtml(taskName)}"]`);
   if (!row) return;
-  const nameSpan = row.querySelector('.task-name-wrapper > span:not(.drag-handle)');
+  const nameSpan = row.querySelector('.task-name-wrapper > span:not(.drag-handle-area)');
   const oldName = taskName;
   nameSpan.innerHTML = `<input type="text" class="inline-edit-input" value="${escapeHtml(oldName)}" autocomplete="off" style="width:${Math.max(oldName.length * 8, 80)}px">`;
   const input = nameSpan.querySelector('input');
