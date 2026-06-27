@@ -1119,6 +1119,9 @@ function cleanupDrag() {
     el.classList.remove('dragging', 'drag-before', 'drag-after');
   });
   document.body.classList.remove('dragging-active', 'dragging-category');
+  // Force reflow so browser registers transitions are active again
+  // before we trigger expansion (otherwise max-height transition won't fire)
+  void document.body.offsetHeight;
   // Restore categories that were force-collapsed during drag
   document.querySelectorAll('.category-collapsible[data-drag-force-hidden]').forEach(el => {
     delete el.dataset.dragForceHidden;
