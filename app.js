@@ -952,21 +952,25 @@ function moveDragGhost(e) {
   }
   
   if (drag.type === 'category') {
-    // Categories: use drag-before/drag-after classes
     const targets = document.querySelectorAll('#categoriesContainer .category-block');
     targets.forEach(el => el.classList.remove('drag-before', 'drag-after'));
-    let found = false;
+    // Find the block whose vertical midpoint is nearest to cursor
+    let best = null;
+    let bestDist = Infinity;
     targets.forEach(el => {
       if (el === drag.source) return;
       const r = el.getBoundingClientRect();
-      if (e.clientY >= r.top && e.clientY <= r.bottom) {
-        found = true;
-        el.classList.toggle('drag-before', e.clientY < r.top + r.height / 2);
-        el.classList.toggle('drag-after', e.clientY >= r.top + r.height / 2);
+      const mid = r.top + r.height / 2;
+      const dist = Math.abs(e.clientY - mid);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = { el, r, mid };
       }
     });
-    if (!found) {
-      targets.forEach(el => el.classList.remove('drag-before', 'drag-after'));
+    if (best) {
+      const before = e.clientY < best.mid;
+      best.el.classList.toggle('drag-before', before);
+      best.el.classList.toggle('drag-after', !before);
     }
   } else if (drag.dropLine) {
     // Tasks: show a clean horizontal line between rows
@@ -1008,12 +1012,16 @@ function endDrag(e) {
   let pos = 'before';
   
   if (drag.type === 'category') {
+    let bestDist = Infinity;
     targets.forEach(el => {
       if (el === drag.source) return;
       const r = el.getBoundingClientRect();
-      if (e.clientY >= r.top && e.clientY <= r.bottom) {
+      const mid = r.top + r.height / 2;
+      const dist = Math.abs(e.clientY - mid);
+      if (dist < bestDist) {
+        bestDist = dist;
         target = el;
-        pos = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+        pos = e.clientY < mid ? 'before' : 'after';
       }
     });
   } else {
