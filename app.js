@@ -52,6 +52,46 @@ const DEFAULT_PRESETS = [
 
 const DAYS_OF_WEEK = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
 
+// --- WEEK HELPERS ---
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getWeekStartISO(date) {
+  return getWeekStart(date).toISOString().slice(0, 10);
+}
+
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+function formatISOToDisplay(isoStr) {
+  const d = new Date(isoStr + 'T00:00:00');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+}
+
+function updateWeekDisplay() {
+  const start = new Date(state.viewWeekStart + 'T00:00:00');
+  const end = new Date(start);
+  end.setDate(start.getDate() + 4);
+  const el = document.getElementById('weekRange');
+  if (el) el.textContent = `${formatISOToDisplay(state.viewWeekStart)} – ${formatISOToDisplay(end.toISOString().slice(0, 10))}`;
+}
+
+function navigateWeek(direction) {
+  const d = new Date(state.viewWeekStart + 'T00:00:00');
+  d.setDate(d.getDate() + direction * 7);
+  state.viewWeekStart = getWeekStartISO(d);
+  localStorage.setItem('bldsrv_view_week', state.viewWeekStart);
+  updateWeekDisplay();
+  renderActiveView();
+}
+
 // --- STATE ---
 let state = {
   employees: [],
@@ -59,6 +99,7 @@ let state = {
   shifts: [],
   presets: [],
   currentProfileId: '',
+  viewWeekStart: '',
   activeTab: 'full-schedule', // 'my-tasks', 'full-schedule', 'manage-team'
   selectedRoleForNewPerson: 'Osoba',
   
@@ -199,6 +240,14 @@ function initApp() {
   state.presets = JSON.parse(localStorage.getItem('bldsrv_presets')) || DEFAULT_PRESETS;
   
   migrateOldNaming();
+
+  state.shifts.forEach(s => {
+    if (!s.weekStart) s.weekStart = getWeekStartISO(new Date());
+  });
+
+  const savedWeek = localStorage.getItem('bldsrv_view_week');
+  state.viewWeekStart = savedWeek || getWeekStartISO(new Date());
+
   saveStateToStorage();
 
   const savedProfileId = localStorage.getItem('bldsrv_active_profile');
@@ -215,6 +264,7 @@ function initApp() {
   populateProfileDropdown();
   updateRoleMode();
   renderTabs();
+  updateWeekDisplay();
   renderActiveView();
   updateUndoRedoButtons();
 }
@@ -288,6 +338,22 @@ function populateProfileDropdown() {
     }
     select.appendChild(option);
   });
+  
+  updateProfileDisplay();
+}
+
+function updateProfileDisplay() {
+  const profile = getCurrentProfile();
+  if (!profile) return;
+  const avatarEl = document.getElementById('profileAvatar');
+  const nameEl = document.getElementById('profileName');
+  if (avatarEl) {
+    const initials = profile.name.split(' ').map(s => s[0]).join('').toUpperCase().slice(0, 2);
+    avatarEl.textContent = initials;
+  }
+  if (nameEl) {
+    nameEl.textContent = profile.name;
+  }
 }
 
 function switchTab(tabId) {
@@ -375,7 +441,7 @@ function renderMyTasksView() {
   
   DAYS_OF_WEEK.forEach((day, index) => {
     const isToday = index === currentDayIndex;
-    const dayShifts = state.shifts.filter(s => s.employeeId === profile.id && s.day === day);
+    const dayShifts = state.shifts.filter(s => s.employeeId === profile.id && s.day === day && s.weekStart === state.viewWeekStart);
     
     const card = document.createElement('div');
     card.className = `day-column-card ${isToday ? 'is-today' : ''}`;
@@ -387,6 +453,7 @@ function renderMyTasksView() {
           s.taskId === shift.taskId && 
           s.day === shift.day && 
           s.employeeId !== profile.id &&
+          s.weekStart === state.viewWeekStart &&
           timesOverlap(shift.time, s.time)
         );
         
@@ -620,7 +687,7 @@ function renderFullScheduleView() {
         tdDay.setAttribute('data-task', task);
         tdDay.setAttribute('data-day', day);
         
-        const cellShifts = state.shifts.filter(s => s.taskId === task && s.day === day);
+        const cellShifts = state.shifts.filter(s => s.taskId === task && s.day === day && s.weekStart === state.viewWeekStart);
         
         const shiftsContainer = document.createElement('div');
         shiftsContainer.className = 'shifts-container';
@@ -1885,7 +1952,8 @@ function executeSave(names, time, closeAfter) {
         s.taskId === state.activeCellTask && 
         s.day === state.activeCellDay && 
         s.employeeId === empId && 
-        s.time === time
+        s.time === time &&
+        s.weekStart === state.viewWeekStart
       );
       
       if (!duplicate) {
@@ -1894,7 +1962,8 @@ function executeSave(names, time, closeAfter) {
           taskId: state.activeCellTask,
           day: state.activeCellDay,
           employeeId: empId,
-          time: time
+          time: time,
+          weekStart: state.viewWeekStart
         };
         state.shifts.push(newShift);
       }
@@ -2077,11 +2146,17 @@ function setupEventListeners() {
     state.currentProfileId = e.target.value;
     localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
     
+    updateProfileDisplay();
     updateRoleMode();
     if (state.activeTab === 'my-tasks') renderMyTasksView();
     renderFullScheduleView();
     showToast(`Przełączono profil na: ${getCurrentProfile().name}`);
   });
+
+  const btnPrev = document.getElementById('btnDatePrev');
+  const btnNext = document.getElementById('btnDateNext');
+  if (btnPrev) btnPrev.addEventListener('click', () => navigateWeek(-1));
+  if (btnNext) btnNext.addEventListener('click', () => navigateWeek(1));
 
   const tabButtons = document.querySelectorAll('.nav-tab');
   tabButtons.forEach(btn => {

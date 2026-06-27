@@ -81,23 +81,38 @@ body {
   left: 0;
   right: 0;
   z-index: 1000;
+  display: flex;
+  justify-content: center;
   background: transparent;
   padding: 14px 24px 0;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.top-fixed-bar-inner {
+  width: 100%;
+  max-width: 1280px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  max-width: 1280px;
-  margin: 0 auto;
-  box-sizing: border-box;
+  pointer-events: auto;
 }
 
-/* --- PROFILE AVATAR (above card, right side) --- */
+/* --- PROFILE SELECTOR (above card, right side) --- */
 .profile-top {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  padding-right: 4px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition);
+}
+
+.profile-top:hover {
+  background: rgba(255,255,255,0.5);
 }
 
 .profile-avatar {
@@ -111,7 +126,7 @@ body {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
 .profile-name {
@@ -122,6 +137,17 @@ body {
 
 .profile-top svg {
   color: var(--text-light);
+  flex-shrink: 0;
+}
+
+.profile-select-inline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* --- MAIN HEADER CARD --- */
@@ -130,10 +156,10 @@ body {
   background: var(--bg-card);
   border-radius: 20px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
-  padding: 12px 20px;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   border: 1px solid var(--border-color);
 }
 
@@ -141,7 +167,7 @@ body {
 .hc-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
@@ -150,56 +176,52 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--primary);
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   box-shadow: 0 4px 12px rgba(130,180,64,0.3);
   flex-shrink: 0;
 }
 
 .hc-brand {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.hc-brand-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--text-dark);
   letter-spacing: -0.3px;
-  text-transform: uppercase;
-}
-
-.hc-brand-sub {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-light);
+  white-space: nowrap;
 }
 
 /* Center: Segmented control (tabs) */
 .hc-tabs {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   background: #f1f4f7;
-  padding: 4px;
-  border-radius: 12px;
+  padding: 3px;
+  border-radius: 10px;
   flex: 1;
   justify-content: center;
+  min-width: 0;
 }
 
 .nav-tab.hc-tab {
-  padding: 7px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
   font-family: var(--font-family);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-medium);
   background: transparent;
   border: none;
-  border-radius: 9px;
+  border-radius: 8px;
   cursor: pointer;
   transition: var(--transition);
   white-space: nowrap;
+}
+
+.nav-tab.hc-tab svg {
+  flex-shrink: 0;
 }
 
 .nav-tab.hc-tab:hover {
@@ -210,22 +232,22 @@ body {
 .nav-tab.hc-tab.active {
   color: #fff;
   background: var(--primary);
-  box-shadow: 0 4px 12px rgba(130,180,64,0.35);
+  box-shadow: 0 3px 10px rgba(130,180,64,0.3);
 }
 
 /* Right: Date selector */
 .hc-date {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   background: #f1f4f7;
-  padding: 6px 14px;
-  border-radius: 10px;
+  padding: 5px 12px;
+  border-radius: 9px;
   flex-shrink: 0;
 }
 
 .hc-date-range {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-dark);
   white-space: nowrap;
@@ -234,8 +256,8 @@ body {
 .hc-date-nav {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-left: 4px;
+  gap: 4px;
+  margin-left: 2px;
 }
 
 .hc-date-btn {
@@ -245,7 +267,7 @@ body {
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px 5px;
   border-radius: 4px;
   line-height: 1;
   transition: var(--transition);
@@ -269,7 +291,7 @@ body {
   gap: 2px;
   background: #f1f4f7;
   padding: 4px 6px;
-  border-radius: 10px;
+  border-radius: 9px;
   flex-shrink: 0;
 }
 
@@ -300,11 +322,6 @@ body {
   width: 1px;
   height: 16px;
   background: var(--border-color);
-}
-
-/* Hidden select (kept for JS) */
-.hidden-select {
-  display: none;
 }
 
 /* MAIN CONTENT */
