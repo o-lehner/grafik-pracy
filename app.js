@@ -143,12 +143,17 @@ function toggleCategoryCollapse(categoryId) {
   const el = document.querySelector(`.category-block[data-category-id="${categoryId}"] .category-collapsible`);
   if (collapsedCategories.has(categoryId)) {
     collapsedCategories.delete(categoryId);
-    if (el) el.classList.remove('cat-collapsed');
+    if (el) {
+      el.style.setProperty('--content-height', el.scrollHeight + 'px');
+      el.classList.remove('cat-collapsed');
+    }
   } else {
     collapsedCategories.add(categoryId);
-    if (el) el.classList.add('cat-collapsed');
+    if (el) {
+      el.style.setProperty('--content-height', el.scrollHeight + 'px');
+      el.classList.add('cat-collapsed');
+    }
   }
-  // Don't re-render for toggle — just animate
 }
 
 // --- UNDO / REDO SYSTEM (200 actions) ---
@@ -1028,6 +1033,7 @@ function endDrag(e) {
   
   let target = null;
   let pos = 'before';
+  let didMove = false;
   
   if (drag.type === 'category') {
     let bestDist = Infinity;
@@ -1043,7 +1049,6 @@ function endDrag(e) {
       }
     });
   } else {
-    // For tasks: also handle drop before first / after last row
     const rows = Array.from(targets).filter(el => el !== drag.source);
     for (const row of rows) {
       const r = row.getBoundingClientRect();
@@ -1073,9 +1078,7 @@ function endDrag(e) {
         state.categories.splice(insertAt, 0, removed);
         recordAction();
         saveStateToStorage();
-        const catMoved = drag.source;
-        catMoved.classList.add('drop-highlight');
-        setTimeout(() => catMoved.classList.remove('drop-highlight'), 700);
+        didMove = true;
       }
     } else {
       const draggedTask = drag.source.getAttribute('data-task-name');
@@ -1093,15 +1096,20 @@ function endDrag(e) {
           tasks.splice(insertAt, 0, removed);
           recordAction();
           saveStateToStorage();
-          const rowMoved = drag.source;
-          rowMoved.classList.add('drop-highlight');
-          setTimeout(() => rowMoved.classList.remove('drop-highlight'), 800);
+          didMove = true;
         }
       }
     }
   }
   
+  const movedEl = drag.source;
   cleanupDrag();
+  
+  // Add drop-highlight AFTER full cleanup so it doesn't compete with category expansion
+  if (didMove && movedEl) {
+    movedEl.classList.add('drop-highlight');
+    setTimeout(() => movedEl.classList.remove('drop-highlight'), 800);
+  }
 }
 
 function cleanupDrag() {

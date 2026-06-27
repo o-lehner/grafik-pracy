@@ -2158,7 +2158,7 @@ body.dragging-category .category-block {
   animation: drop-highlight 0.7s ease-out;
 }
 
-.category-table-body tr.drop-highlight {
+.category-table-body tr.drop-highlight td {
   animation: drop-highlight 0.7s ease-out;
 }
 
