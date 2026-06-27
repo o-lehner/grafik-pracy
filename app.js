@@ -322,7 +322,6 @@ function updateRoleMode() {
   const profile = getCurrentProfile();
   const body = document.body;
   const tabManageTeamBtn = document.getElementById('tabManageTeam');
-  const adminScheduleControls = document.getElementById('adminScheduleControls');
   const undoRedoHeader = document.getElementById('undoRedoHeader');
   
   if (!profile) return;
@@ -330,12 +329,10 @@ function updateRoleMode() {
   if (profile.role === 'Administrator') {
     body.classList.add('app-mode-administrator');
     tabManageTeamBtn.classList.remove('hidden');
-    adminScheduleControls.classList.remove('hidden');
     undoRedoHeader.classList.remove('hidden');
   } else {
     body.classList.remove('app-mode-administrator');
     tabManageTeamBtn.classList.add('hidden');
-    adminScheduleControls.classList.add('hidden');
     undoRedoHeader.classList.add('hidden');
     
     if (state.activeTab === 'manage-team') {
@@ -1272,6 +1269,7 @@ function createCategoryAdder(insertIndex) {
   
   btnAdd.addEventListener('click', () => {
     btnAdd.classList.add('hidden');
+    div.classList.add('adder-form-open');
     form.classList.remove('hidden');
     input.focus();
   });
@@ -1286,6 +1284,7 @@ function createCategoryAdder(insertIndex) {
   const cancel = () => {
     input.value = '';
     form.classList.add('hidden');
+    div.classList.remove('adder-form-open');
     btnAdd.classList.remove('hidden');
   };
   

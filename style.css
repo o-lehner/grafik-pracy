@@ -635,30 +635,6 @@ body {
 
 
 /* 2. SCHEDULE CATEGORIES & TABLES (Point 5 & 7) */
-.admin-schedule-controls {
-  background-color: var(--bg-card);
-  padding: 16px 20px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-}
-
-.inline-form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.inline-form input {
-  max-width: 250px;
-  padding: 8px 12px;
-  font-size: 14px;
-}
-
 .categories-container {
   display: flex;
   flex-direction: column;
@@ -684,14 +660,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
+  min-height: 32px;
   position: relative;
+  padding: 2px 0;
 }
 .category-adder::before {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 40px;
+  right: 40px;
   top: 50%;
   height: 1px;
   background: var(--border-color);
@@ -699,6 +676,9 @@ body {
 }
 .category-adder:hover::before {
   background: var(--primary);
+}
+.category-adder.adder-form-open::before {
+  display: none;
 }
 .btn-add-category-at {
   position: relative;
@@ -724,25 +704,43 @@ body {
 .category-adder-form {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   position: relative;
   z-index: 1;
   background: var(--bg-card);
-  padding: 4px 8px;
-  border-radius: var(--radius);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
+  width: 100%;
 }
 .category-adder-input {
   flex: 1;
-  padding: 6px 10px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 14px;
   min-width: 200px;
   outline: none;
+  box-sizing: border-box;
 }
 .category-adder-input:focus {
   border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(130, 180, 64, 0.15);
+}
+.category-adder-confirm,
+.category-adder-cancel {
+  height: 36px;
+  padding: 0 18px;
+  font-size: 13px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .category-title-container {
