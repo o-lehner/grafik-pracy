@@ -330,7 +330,7 @@ function renderMyTasksView() {
   const date = new Date();
   let currentDayIndex = date.getDay() - 1; 
   if (currentDayIndex < 0 || currentDayIndex > 4) {
-    currentDayIndex = 3; // default to Thursday
+    currentDayIndex = 4;
   }
   
   const container = document.getElementById('myTasksGrid');
@@ -487,8 +487,8 @@ function renderFullScheduleView() {
     // getDay() zwraca 0 dla niedzieli, 1 dla poniedziałku...
     // Chcemy 0 dla Poniedziałku, 4 dla Piątku.
     let currentDayIdx = currentDate.getDay() - 1; 
-    if (currentDayIdx < 0 || currentDayIdx > 4) { // Jeśli weekend, domyślnie na np. czwartek
-      currentDayIdx = 3; 
+    if (currentDayIdx < 0 || currentDayIdx > 4) {
+      currentDayIdx = 4;
     }
 
     // Podświetlenie nagłówka dnia
@@ -501,6 +501,8 @@ function renderFullScheduleView() {
     
     cat.tasks.forEach(task => {
       const tr = document.createElement('tr');
+      tr.setAttribute('data-task-name', task);
+      tr.setAttribute('data-category-id', cat.id);
       
       const tdTask = document.createElement('td');
       tdTask.className = 'cell-task-name';
@@ -617,6 +619,116 @@ function renderFullScheduleView() {
         }
       });
     }
+  });
+  
+  enableCategoryDragDrop();
+  state.categories.forEach(cat => enableTaskDragDrop(cat.id));
+}
+
+// --- DRAG & DROP ---
+function enableCategoryDragDrop() {
+  const container = document.getElementById('categoriesContainer');
+  const blocks = container.querySelectorAll('.category-block');
+  
+  blocks.forEach(block => {
+    block.setAttribute('draggable', 'true');
+    
+    block.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', block.getAttribute('data-category-id'));
+      block.classList.add('dragging');
+    });
+    
+    block.addEventListener('dragend', () => {
+      block.classList.remove('dragging');
+      container.querySelectorAll('.category-block').forEach(b => b.classList.remove('drag-over'));
+    });
+    
+    block.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      block.classList.add('drag-over');
+    });
+    
+    block.addEventListener('dragleave', () => {
+      block.classList.remove('drag-over');
+    });
+    
+    block.addEventListener('drop', (e) => {
+      e.preventDefault();
+      block.classList.remove('drag-over');
+      const draggedId = e.dataTransfer.getData('text/plain');
+      const targetId = block.getAttribute('data-category-id');
+      if (draggedId === targetId) return;
+      
+      const draggedIndex = state.categories.findIndex(c => c.id === draggedId);
+      const targetIndex = state.categories.findIndex(c => c.id === targetId);
+      if (draggedIndex === -1 || targetIndex === -1) return;
+      
+      recordAction();
+      const [removed] = state.categories.splice(draggedIndex, 1);
+      state.categories.splice(targetIndex, 0, removed);
+      saveStateToStorage();
+      renderFullScheduleView();
+    });
+  });
+}
+
+function enableTaskDragDrop(categoryId) {
+  const tbody = document.querySelector(`.category-table-body[data-category-id="${categoryId}"]`);
+  if (!tbody) return;
+  const rows = tbody.querySelectorAll('tr');
+  
+  rows.forEach(row => {
+    row.setAttribute('draggable', 'true');
+    
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        categoryId: categoryId,
+        taskName: row.getAttribute('data-task-name')
+      }));
+      row.classList.add('dragging');
+    });
+    
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+    });
+    
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      row.classList.add('drag-over');
+    });
+    
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over');
+    });
+    
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      
+      let data;
+      try {
+        data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      } catch { return; }
+      
+      if (data.categoryId !== categoryId) return;
+      const draggedTask = data.taskName;
+      const targetTask = row.getAttribute('data-task-name');
+      if (draggedTask === targetTask) return;
+      
+      const catIndex = state.categories.findIndex(c => c.id === categoryId);
+      if (catIndex === -1) return;
+      
+      const draggedIndex = state.categories[catIndex].tasks.indexOf(draggedTask);
+      const targetIndex = state.categories[catIndex].tasks.indexOf(targetTask);
+      if (draggedIndex === -1 || targetIndex === -1) return;
+      
+      recordAction();
+      const [removed] = state.categories[catIndex].tasks.splice(draggedIndex, 1);
+      state.categories[catIndex].tasks.splice(targetIndex, 0, removed);
+      saveStateToStorage();
+      renderFullScheduleView();
+    });
   });
 }
 
@@ -988,12 +1100,9 @@ function renderPeopleInputs() {
         }
       } 
       else if (e.key === 'Enter') {
-        e.preventDefault(); // Zapobiegaj domyślnemu zachowaniu przeglądarki (np. wysyłaniu formularza)
+        e.preventDefault();
+        e.stopPropagation();
         
-        // Obsługa Enter:
-        // 1. Jeśli dropdown jest otwarty i jest wybrana sugestia - wybierz ją.
-        // 2. Jeśli dropdown jest otwarty, ale nic nie wybrano - zamknij dropdown i zostaw kursor w polu.
-        // 3. Jeśli dropdown jest zamknięty i wpisana jest wartość - przejdź do następnego pola osoby lub do pola czasu.
         if (!dropdown.classList.contains('hidden')) {
           if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
             const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
@@ -1016,8 +1125,9 @@ function renderPeopleInputs() {
           }
         }
       }
-      else if (e.key === ',') { // Prawidłowo umieszczona obsługa przecinka
-        e.preventDefault(); 
+      else if (e.key === ',') {
+        e.preventDefault();
+        e.stopPropagation();
         
         let chosenName = val.trim();
         if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
@@ -1631,12 +1741,6 @@ function setupEventListeners() {
 
   document.getElementById('btnModalClose').addEventListener('click', closeAssignModal);
   document.getElementById('btnCancelShift').addEventListener('click', closeAssignModal);
-  
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !document.getElementById('assignModal').classList.contains('hidden')) {
-      closeAssignModal();
-    }
-  });
 
   const presetGrid = document.getElementById('quickSelectGrid');
   presetGrid.addEventListener('click', (e) => {
@@ -1651,9 +1755,11 @@ function setupEventListeners() {
 
   const timeInput = document.getElementById('modalTimeInput');
   
-  // Czyść pole po kliknięciu (focus)
+  // Czyść pole po kliknięciu tylko gdy to domyślny placeholder
   timeInput.addEventListener('focus', (e) => {
-    e.target.value = ''; // Czyść zawsze, niezależnie od wartości
+    if (e.target.value === '08:00–12:00') {
+      e.target.value = '';
+    }
   });
 
   // Format on blur (Point 5)

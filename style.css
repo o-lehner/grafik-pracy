@@ -1680,6 +1680,40 @@ input[type="text"]:focus {
 }
 
 
+/* DRAG & DROP */
+.category-block.dragging,
+.category-table-body tr.dragging {
+  opacity: 0.4;
+}
+
+.category-block.drag-over {
+  border-color: var(--primary);
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(130, 180, 64, 0.2);
+}
+
+.category-table-body tr.drag-over {
+  outline: 2px dashed var(--primary);
+  outline-offset: -2px;
+  background-color: var(--primary-light);
+}
+
+.category-table-body tr[draggable="true"] {
+  cursor: grab;
+}
+
+.category-table-body tr[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.category-block[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.category-block[draggable="true"] {
+  cursor: grab;
+}
+
 /* Hidden Class Utility */
 .hidden {
   display: none !important;
