@@ -1830,6 +1830,32 @@ input[type="text"]:focus {
   font-size: 13px;
 }
 
+/* COLLAPSE CATEGORY */
+.btn-collapse-category {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.btn-collapse-category:hover {
+  color: var(--text-dark);
+  background-color: #e2e8f0;
+}
+
+.category-title-container.collapsed .btn-collapse-category {
+  color: var(--text-medium);
+}
+
 /* Hidden Class Utility */
 .hidden {
   display: none !important;

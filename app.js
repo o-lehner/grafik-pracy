@@ -74,6 +74,18 @@ let state = {
   pendingSaveCallback: null
 };
 
+// --- COLLAPSIBLE CATEGORIES ---
+let collapsedCategories = new Set();
+
+function toggleCategoryCollapse(categoryId) {
+  if (collapsedCategories.has(categoryId)) {
+    collapsedCategories.delete(categoryId);
+  } else {
+    collapsedCategories.add(categoryId);
+  }
+  renderFullScheduleView();
+}
+
 // --- UNDO / REDO SYSTEM (200 actions) ---
 let undoStack = [];
 let redoStack = [];
@@ -355,7 +367,7 @@ function renderMyTasksView() {
   const date = new Date();
   let currentDayIndex = date.getDay() - 1; 
   if (currentDayIndex < 0 || currentDayIndex > 4) {
-    currentDayIndex = 4;
+    currentDayIndex = -1;
   }
   
   const container = document.getElementById('myTasksGrid');
@@ -469,8 +481,10 @@ function renderFullScheduleView() {
       `;
     }
     
+    const isCollapsed = collapsedCategories.has(cat.id);
     const headerHtml = `
-      <div class="category-title-container">
+      <div class="category-title-container ${isCollapsed ? 'collapsed' : ''}">
+        <button class="btn-collapse-category" onclick="toggleCategoryCollapse('${cat.id}')" title="${isCollapsed ? 'Rozwiń' : 'Zwiń'}">${isCollapsed ? '▶' : '▼'}</button>
         <span class="drag-handle" title="Przeciągnij aby przenieść">⠿</span>
         <span class="category-title">${cat.name}</span>
         ${editCategoryBtn}
@@ -516,7 +530,7 @@ function renderFullScheduleView() {
       `;
     }
     
-    block.innerHTML = headerHtml + tableHtml + footerHtml;
+    block.innerHTML = headerHtml + `<div class="category-collapsible${isCollapsed ? ' hidden' : ''}">` + tableHtml + footerHtml + `</div>`;
     container.appendChild(block);
     
     const tbody = block.querySelector('.category-table-body');
@@ -527,7 +541,7 @@ function renderFullScheduleView() {
     // Chcemy 0 dla Poniedziałku, 4 dla Piątku.
     let currentDayIdx = currentDate.getDay() - 1; 
     if (currentDayIdx < 0 || currentDayIdx > 4) {
-      currentDayIdx = 4;
+      currentDayIdx = -1;
     }
 
     // Podświetlenie nagłówka dnia
@@ -767,6 +781,7 @@ function enableCategoryDragDrop() {
   const blocks = container.querySelectorAll('.category-block');
   
   blocks.forEach(block => {
+    block.setAttribute('draggable', 'true');
     block.addEventListener('dragstart', (e) => {
       if (!isDragHandle(e)) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', block.getAttribute('data-category-id'));
@@ -830,6 +845,8 @@ function enableTaskDragDrop(categoryId) {
   const rows = tbody.querySelectorAll('tr');
   
   rows.forEach(row => {
+    if (row.classList.contains('add-task-row')) return;
+    row.setAttribute('draggable', 'true');
     row.addEventListener('dragstart', (e) => {
       if (!isDragHandle(e)) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', JSON.stringify({
