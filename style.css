@@ -1781,25 +1781,15 @@ body.dragging-category .category-block:not(.dragging) {
   position: relative;
 }
 
-/* --- DROP INDICATORS: task rows (visible line between rows) --- */
+/* --- DROP INDICATORS: task rows (box-shadow = no layout shift) --- */
 .category-table-body tr.drag-before td {
-  border-top: 3px solid var(--primary) !important;
-  background-color: rgba(130, 180, 64, 0.08) !important;
-}
-
-.category-table-body tr.drag-before td:first-child {
-  border-left: 3px solid var(--primary) !important;
-  border-radius: 4px 0 0 0;
+  box-shadow: inset 0 2px 0 var(--primary), inset 2px 0 0 var(--primary) !important;
+  background-color: rgba(130, 180, 64, 0.12) !important;
 }
 
 .category-table-body tr.drag-after td {
-  border-bottom: 3px solid var(--primary) !important;
-  background-color: rgba(130, 180, 64, 0.08) !important;
-}
-
-.category-table-body tr.drag-after td:first-child {
-  border-left: 3px solid var(--primary) !important;
-  border-radius: 4px 0 0 0;
+  box-shadow: inset 0 -2px 0 var(--primary), inset 2px 0 0 var(--primary) !important;
+  background-color: rgba(130, 180, 64, 0.12) !important;
 }
 
 /* INLINE EDIT INPUT */

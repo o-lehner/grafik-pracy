@@ -821,6 +821,11 @@ function initDrag(element, type, sourceId, sourceName) {
   
   if (type === 'category') {
     document.body.classList.add('dragging-category');
+    // Collapse all non-dragged categories so only headers are visible
+    document.querySelectorAll('.category-block:not(.dragging) .category-collapsible').forEach(el => {
+      el.dataset.dragForceHidden = '1';
+      el.classList.add('hidden');
+    });
   }
   
   const ghost = document.createElement('div');
@@ -943,6 +948,18 @@ function cleanupDrag() {
     el.classList.remove('dragging', 'drag-before', 'drag-after');
   });
   document.body.classList.remove('dragging-active', 'dragging-category');
+  // Restore categories that were force-collapsed during drag
+  document.querySelectorAll('.category-collapsible[data-drag-force-hidden]').forEach(el => {
+    delete el.dataset.dragForceHidden;
+    // Only remove hidden class if the category wasn't already collapsed
+    const block = el.closest('.category-block');
+    if (block) {
+      const id = block.getAttribute('data-category-id');
+      if (id && !collapsedCategories.has(id)) {
+        el.classList.remove('hidden');
+      }
+    }
+  });
   drag.active = false;
   drag.source = null;
   drag.type = '';
