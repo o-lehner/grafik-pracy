@@ -320,6 +320,31 @@ function renderActiveView() {
   }
 }
 
+// --- HELPER: Time Overlap ---
+function parseTimeRange(timeStr) {
+  const clean = timeStr.trim();
+  if (clean === '1h' || clean === '2h') return null;
+  const parts = clean.split(/[-–—]/);
+  if (parts.length < 2) return null;
+  const toMinutes = (s) => {
+    const trimmed = s.trim();
+    const [h, m] = trimmed.split(':').map(Number);
+    if (isNaN(h)) return null;
+    return h * 60 + (isNaN(m) ? 0 : m);
+  };
+  const start = toMinutes(parts[0]);
+  const end = toMinutes(parts[parts.length - 1]);
+  if (start === null || end === null) return null;
+  return { start, end };
+}
+
+function timesOverlap(timeA, timeB) {
+  const a = parseTimeRange(timeA);
+  const b = parseTimeRange(timeB);
+  if (!a || !b) return true;
+  return a.start < b.end && b.start < a.end;
+}
+
 // --- VIEW 1: MY TASKS ---
 function renderMyTasksView() {
   const profile = getCurrentProfile();
@@ -346,11 +371,11 @@ function renderMyTasksView() {
     let shiftsHtml = '';
     if (dayShifts.length > 0) {
       dayShifts.forEach(shift => {
-        // Look up coworkers for the same task and day (Point 1 - Beautiful aligned layout)
         const coworkers = state.shifts.filter(s => 
           s.taskId === shift.taskId && 
           s.day === shift.day && 
-          s.employeeId !== profile.id
+          s.employeeId !== profile.id &&
+          timesOverlap(shift.time, s.time)
         );
         
         let coworkersHtml = '';
@@ -432,9 +457,23 @@ function renderFullScheduleView() {
       `;
     }
     
+    let editCategoryBtn = '';
+    if (isAdmin) {
+      editCategoryBtn = `
+        <button class="btn-edit-category" onclick="editCategoryName('${cat.id}')" title="Edytuj nazwę kategorii">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+      `;
+    }
+    
     const headerHtml = `
       <div class="category-title-container">
+        <span class="drag-handle" title="Przeciągnij aby przenieść">⠿</span>
         <span class="category-title">${cat.name}</span>
+        ${editCategoryBtn}
         ${deleteCategoryBtn}
       </div>
     `;
@@ -519,9 +558,23 @@ function renderFullScheduleView() {
         `;
       }
       
+      let editTaskBtn = '';
+      if (isAdmin) {
+        editTaskBtn = `
+          <button class="btn-edit-task" onclick="editTaskName('${cat.id}', '${task}')" title="Edytuj nazwę zadania">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+        `;
+      }
+      
       tdTask.innerHTML = `
         <div class="task-name-wrapper">
+          <span class="drag-handle" title="Przeciągnij aby przenieść">⠿</span>
           <span>${task}</span>
+          ${editTaskBtn}
           ${deleteTaskBtn}
         </div>
       `;
@@ -611,13 +664,84 @@ function renderFullScheduleView() {
       tbody.appendChild(tr);
     });
     
+    // Always-visible add-task button at bottom of task list
+    if (isAdmin) {
+      const addRow = document.createElement('tr');
+      addRow.className = 'add-task-row';
+      const addCell = document.createElement('td');
+      addCell.colSpan = 6;
+      addCell.innerHTML = `
+        <div class="inline-add-task-inline">
+          <button class="btn-add-task-inline" title="Dodaj nowe zadanie">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Dodaj zadanie
+          </button>
+          <input type="text" class="input-new-task-inline" placeholder="Nazwa zadania..." autocomplete="off" style="display:none">
+          <button class="btn btn-success btn-sm btn-confirm-task-inline" style="display:none">Dodaj</button>
+          <button class="btn btn-text btn-sm btn-cancel-task-inline" style="display:none">Anuluj</button>
+        </div>
+      `;
+      tbody.appendChild(addRow);
+      
+      const addBtn = addCell.querySelector('.btn-add-task-inline');
+      const taskInput = addCell.querySelector('.input-new-task-inline');
+      const confirmBtn = addCell.querySelector('.btn-confirm-task-inline');
+      const cancelBtn = addCell.querySelector('.btn-cancel-task-inline');
+      
+      const showInput = () => {
+        addBtn.style.display = 'none';
+        taskInput.style.display = '';
+        confirmBtn.style.display = '';
+        cancelBtn.style.display = '';
+        taskInput.focus();
+      };
+      
+      const hideInput = () => {
+        addBtn.style.display = '';
+        taskInput.style.display = 'none';
+        confirmBtn.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        taskInput.value = '';
+      };
+      
+      const doAdd = () => {
+        const name = taskInput.value.trim();
+        if (!name) return;
+        const catIndex = state.categories.findIndex(c => c.id === cat.id);
+        if (catIndex === -1) return;
+        const exists = state.categories[catIndex].tasks.some(t => t.toLowerCase() === name.toLowerCase());
+        if (exists) {
+          showToast('Zadanie o tej nazwie już istnieje w tej kategorii', 'danger');
+          return;
+        }
+        recordAction();
+        state.categories[catIndex].tasks.push(name);
+        saveStateToStorage();
+        renderFullScheduleView();
+        showToast(`Dodano zadanie "${name}"`);
+      };
+      
+      addBtn.addEventListener('click', showInput);
+      confirmBtn.addEventListener('click', doAdd);
+      cancelBtn.addEventListener('click', hideInput);
+      taskInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); doAdd(); }
+        if (e.key === 'Escape') { e.preventDefault(); hideInput(); }
+      });
+    }
+    
     if (isAdmin) {
       const taskInput = block.querySelector('.input-new-task');
-      taskInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          handleAddTask(cat.id);
-        }
-      });
+      if (taskInput) {
+        taskInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            handleAddTask(cat.id);
+          }
+        });
+      }
     }
   });
   
@@ -626,35 +750,56 @@ function renderFullScheduleView() {
 }
 
 // --- DRAG & DROP ---
+function isDragHandle(e) {
+  const handle = e.target.closest('.drag-handle');
+  const block = e.target.closest('.category-block, tr');
+  return handle && block;
+}
+
+function getDropPosition(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  return y < rect.height / 2 ? 'before' : 'after';
+}
+
 function enableCategoryDragDrop() {
   const container = document.getElementById('categoriesContainer');
   const blocks = container.querySelectorAll('.category-block');
   
   blocks.forEach(block => {
-    block.setAttribute('draggable', 'true');
-    
     block.addEventListener('dragstart', (e) => {
+      if (!isDragHandle(e)) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', block.getAttribute('data-category-id'));
+      e.dataTransfer.effectAllowed = 'move';
       block.classList.add('dragging');
+      const ghost = document.createElement('div');
+      ghost.textContent = block.querySelector('.category-title').textContent;
+      ghost.style.cssText = 'padding:8px 16px;background:#82b440;color:#fff;border-radius:8px;font-weight:600;font-size:13px;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 80, 20);
+      setTimeout(() => ghost.remove(), 0);
     });
     
     block.addEventListener('dragend', () => {
       block.classList.remove('dragging');
-      container.querySelectorAll('.category-block').forEach(b => b.classList.remove('drag-over'));
+      container.querySelectorAll('.category-block').forEach(b => b.classList.remove('drag-before', 'drag-after'));
     });
     
     block.addEventListener('dragover', (e) => {
       e.preventDefault();
-      block.classList.add('drag-over');
+      e.dataTransfer.dropEffect = 'move';
+      const pos = getDropPosition(e);
+      block.classList.toggle('drag-before', pos === 'before');
+      block.classList.toggle('drag-after', pos === 'after');
     });
     
     block.addEventListener('dragleave', () => {
-      block.classList.remove('drag-over');
+      block.classList.remove('drag-before', 'drag-after');
     });
     
     block.addEventListener('drop', (e) => {
       e.preventDefault();
-      block.classList.remove('drag-over');
+      block.classList.remove('drag-before', 'drag-after');
       const draggedId = e.dataTransfer.getData('text/plain');
       const targetId = block.getAttribute('data-category-id');
       if (draggedId === targetId) return;
@@ -663,9 +808,16 @@ function enableCategoryDragDrop() {
       const targetIndex = state.categories.findIndex(c => c.id === targetId);
       if (draggedIndex === -1 || targetIndex === -1) return;
       
+      const pos = getDropPosition(e);
+      let insertAt = targetIndex;
+      if (pos === 'after') insertAt = targetIndex + 1;
+      if (draggedIndex < targetIndex && pos === 'after') insertAt--;
+      if (draggedIndex > targetIndex && pos === 'before') insertAt = targetIndex;
+      if (draggedIndex < targetIndex && pos === 'before') insertAt = targetIndex - 1;
+      
       recordAction();
       const [removed] = state.categories.splice(draggedIndex, 1);
-      state.categories.splice(targetIndex, 0, removed);
+      state.categories.splice(insertAt, 0, removed);
       saveStateToStorage();
       renderFullScheduleView();
     });
@@ -678,33 +830,42 @@ function enableTaskDragDrop(categoryId) {
   const rows = tbody.querySelectorAll('tr');
   
   rows.forEach(row => {
-    row.setAttribute('draggable', 'true');
-    
     row.addEventListener('dragstart', (e) => {
+      if (!isDragHandle(e)) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', JSON.stringify({
         categoryId: categoryId,
         taskName: row.getAttribute('data-task-name')
       }));
+      e.dataTransfer.effectAllowed = 'move';
       row.classList.add('dragging');
+      const ghost = document.createElement('div');
+      ghost.textContent = row.getAttribute('data-task-name');
+      ghost.style.cssText = 'padding:6px 12px;background:#82b440;color:#fff;border-radius:6px;font-weight:600;font-size:12px;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 60, 15);
+      setTimeout(() => ghost.remove(), 0);
     });
     
     row.addEventListener('dragend', () => {
       row.classList.remove('dragging');
-      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-before', 'drag-after'));
     });
     
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
-      row.classList.add('drag-over');
+      e.dataTransfer.dropEffect = 'move';
+      const pos = getDropPosition(e);
+      row.classList.toggle('drag-before', pos === 'before');
+      row.classList.toggle('drag-after', pos === 'after');
     });
     
     row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-over');
+      row.classList.remove('drag-before', 'drag-after');
     });
     
     row.addEventListener('drop', (e) => {
       e.preventDefault();
-      row.classList.remove('drag-over');
+      row.classList.remove('drag-before', 'drag-after');
       
       let data;
       try {
@@ -723,9 +884,16 @@ function enableTaskDragDrop(categoryId) {
       const targetIndex = state.categories[catIndex].tasks.indexOf(targetTask);
       if (draggedIndex === -1 || targetIndex === -1) return;
       
+      const pos = getDropPosition(e);
+      let insertAt = targetIndex;
+      if (pos === 'after') insertAt = targetIndex + 1;
+      if (draggedIndex < targetIndex && pos === 'after') insertAt--;
+      if (draggedIndex > targetIndex && pos === 'before') insertAt = targetIndex;
+      if (draggedIndex < targetIndex && pos === 'before') insertAt = targetIndex - 1;
+      
       recordAction();
       const [removed] = state.categories[catIndex].tasks.splice(draggedIndex, 1);
-      state.categories[catIndex].tasks.splice(targetIndex, 0, removed);
+      state.categories[catIndex].tasks.splice(insertAt, 0, removed);
       saveStateToStorage();
       renderFullScheduleView();
     });
@@ -815,6 +983,89 @@ function deleteCategory(categoryId) {
   saveStateToStorage();
   renderFullScheduleView();
   showToast(`Usunięto kategorię "${cat.name}"`);
+}
+
+// --- INLINE EDIT: CATEGORY & TASK NAMES ---
+function editCategoryName(categoryId) {
+  const cat = state.categories.find(c => c.id === categoryId);
+  if (!cat) return;
+  const container = document.querySelector(`.category-block[data-category-id="${categoryId}"] .category-title-container`);
+  const titleSpan = container.querySelector('.category-title');
+  const oldName = cat.name;
+  titleSpan.innerHTML = `<input type="text" class="inline-edit-input" value="${escapeHtml(oldName)}" autocomplete="off">`;
+  const input = titleSpan.querySelector('input');
+  input.focus();
+  input.select();
+  
+  const finish = (save) => {
+    const val = input.value.trim();
+    if (save && val && val !== oldName) {
+      const exists = state.categories.some(c => c.name.toLowerCase() === val.toLowerCase() && c.id !== categoryId);
+      if (exists) {
+        showToast('Kategoria o tej nazwie już istnieje', 'danger');
+        titleSpan.textContent = oldName;
+        return;
+      }
+      recordAction();
+      cat.name = val;
+      saveStateToStorage();
+      renderFullScheduleView();
+      showToast(`Zmieniono nazwę kategorii na "${val}"`);
+    } else {
+      titleSpan.textContent = oldName;
+    }
+  };
+  
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+function editTaskName(categoryId, taskName) {
+  const catIndex = state.categories.findIndex(c => c.id === categoryId);
+  if (catIndex === -1) return;
+  const row = document.querySelector(`tr[data-category-id="${categoryId}"][data-task-name="${escapeHtml(taskName)}"]`);
+  if (!row) return;
+  const nameSpan = row.querySelector('.task-name-wrapper > span:not(.drag-handle)');
+  const oldName = taskName;
+  nameSpan.innerHTML = `<input type="text" class="inline-edit-input" value="${escapeHtml(oldName)}" autocomplete="off" style="width:${Math.max(oldName.length * 8, 80)}px">`;
+  const input = nameSpan.querySelector('input');
+  input.focus();
+  input.select();
+  
+  const taskIndex = state.categories[catIndex].tasks.indexOf(taskName);
+  
+  const finish = (save) => {
+    const val = input.value.trim();
+    if (save && val && val !== oldName) {
+      const exists = state.categories[catIndex].tasks.some(t => t.toLowerCase() === val.toLowerCase());
+      if (exists) {
+        showToast('Zadanie o tej nazwie już istnieje w tej kategorii', 'danger');
+        nameSpan.textContent = oldName;
+        row.setAttribute('data-task-name', oldName);
+        return;
+      }
+      recordAction();
+      state.categories[catIndex].tasks[taskIndex] = val;
+      state.shifts.forEach(s => {
+        if (s.taskId === oldName) s.taskId = val;
+      });
+      saveStateToStorage();
+      renderFullScheduleView();
+      showToast(`Zmieniono nazwę zadania na "${val}"`);
+    } else {
+      nameSpan.textContent = oldName;
+      row.setAttribute('data-task-name', oldName);
+    }
+  };
+  
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
 }
 
 // --- VIEW 3: TEAM MANAGEMENT ---

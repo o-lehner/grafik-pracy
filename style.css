@@ -1680,38 +1680,154 @@ input[type="text"]:focus {
 }
 
 
-/* DRAG & DROP */
+/* DRAG HANDLE */
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: grab;
+  color: var(--text-light);
+  font-size: 16px;
+  letter-spacing: -2px;
+  line-height: 1;
+  user-select: none;
+  border-radius: 4px;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.drag-handle:hover {
+  color: var(--text-dark);
+  background-color: #e2e8f0;
+}
+
+.cell-task-name .drag-handle {
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+}
+
+/* DRAG & DROP - LINE INDICATORS */
 .category-block.dragging,
 .category-table-body tr.dragging {
-  opacity: 0.4;
+  opacity: 0.3;
 }
 
-.category-block.drag-over {
+.category-block.drag-before {
+  border-top: 3px solid var(--primary);
+  margin-top: -1px;
+}
+
+.category-block.drag-after {
+  border-bottom: 3px solid var(--primary);
+  margin-bottom: -1px;
+}
+
+.category-table-body tr.drag-before {
+  box-shadow: inset 0 3px 0 var(--primary);
+}
+
+.category-table-body tr.drag-after {
+  box-shadow: inset 0 -3px 0 var(--primary);
+}
+
+/* INLINE EDIT INPUT */
+.inline-edit-input {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  padding: 2px 6px;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  outline: none;
+  background: white;
+  color: var(--text-dark);
+  max-width: 300px;
+}
+
+.category-title .inline-edit-input {
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* EDIT BUTTONS */
+.btn-edit-category,
+.btn-edit-task {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  opacity: 0;
+}
+
+.category-title-container:hover .btn-edit-category,
+.cell-task-name:hover .btn-edit-task {
+  opacity: 1;
+}
+
+.btn-edit-category:hover,
+.btn-edit-task:hover {
+  color: var(--secondary);
+  background-color: var(--secondary-light);
+}
+
+.btn-edit-category {
+  margin-right: 4px;
+}
+
+.btn-edit-task {
+  padding: 4px;
+}
+
+/* INLINE ADD TASK ROW IN TABLE */
+.add-task-row td {
+  padding: 8px 16px !important;
+  border-bottom: none !important;
+  background-color: #fafbfc;
+}
+
+.inline-add-task-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-add-task-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-add-task-inline:hover {
+  color: var(--primary);
   border-color: var(--primary);
-  border-width: 2px;
-  box-shadow: 0 0 0 3px rgba(130, 180, 64, 0.2);
-}
-
-.category-table-body tr.drag-over {
-  outline: 2px dashed var(--primary);
-  outline-offset: -2px;
   background-color: var(--primary-light);
 }
 
-.category-table-body tr[draggable="true"] {
-  cursor: grab;
-}
-
-.category-table-body tr[draggable="true"]:active {
-  cursor: grabbing;
-}
-
-.category-block[draggable="true"]:active {
-  cursor: grabbing;
-}
-
-.category-block[draggable="true"] {
-  cursor: grab;
+.input-new-task-inline {
+  flex: 1;
+  max-width: 240px;
+  padding: 6px 10px;
+  font-size: 13px;
 }
 
 /* Hidden Class Utility */
