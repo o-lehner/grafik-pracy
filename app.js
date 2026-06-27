@@ -571,20 +571,26 @@ function renderFullScheduleView() {
     }
     
     const isCollapsed = collapsedCategories.has(cat.id);
+    const collapseBtn = isAdmin ? `
+      <button class="btn-collapse-category" onclick="toggleCategoryCollapse('${cat.id}')" title="${isCollapsed ? 'Rozwiń kategorię' : 'Zwiń kategorię'}">
+        <svg class="chevron-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+    ` : '';
+    const catDragHandle = isAdmin ? `
+      <span class="drag-handle-area grip" title="Przeciągnij aby przenieść">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
+          <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+          <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+        </svg>
+      </span>
+    ` : '';
     const headerHtml = `
       <div class="category-title-container ${isCollapsed ? 'collapsed' : ''}">
-        <button class="btn-collapse-category" onclick="toggleCategoryCollapse('${cat.id}')" title="${isCollapsed ? 'Rozwiń kategorię' : 'Zwiń kategorię'}">
-          <svg class="chevron-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-        <span class="drag-handle-area grip" title="Przeciągnij aby przenieść">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
-            <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
-            <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
-          </svg>
-        </span>
+        ${collapseBtn}
+        ${catDragHandle}
         <span class="category-title">${cat.name}</span>
         ${editCategoryBtn}
         ${deleteCategoryBtn}
@@ -684,15 +690,18 @@ function renderFullScheduleView() {
         `;
       }
       
+      const taskDragHandle = isAdmin ? `
+        <span class="drag-handle-area grip" title="Przeciągnij aby przenieść">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
+            <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+            <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+          </svg>
+        </span>
+      ` : '';
       tdTask.innerHTML = `
         <div class="task-name-wrapper">
-          <span class="drag-handle-area grip" title="Przeciągnij aby przenieść">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
-              <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
-              <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
-            </svg>
-          </span>
+          ${taskDragHandle}
           <span>${task}</span>
           ${editTaskBtn}
           ${deleteTaskBtn}
@@ -883,8 +892,10 @@ function renderFullScheduleView() {
     }
   });
   
-  enableCategoryDragDrop();
-  state.categories.forEach(cat => enableTaskDragDrop(cat.id));
+  if (isAdmin) {
+    enableCategoryDragDrop();
+    state.categories.forEach(cat => enableTaskDragDrop(cat.id));
+  }
 }
 
 // --- MOVE CATEGORIES & TASKS (ARROW BUTTONS) ---
