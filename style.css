@@ -82,7 +82,7 @@ body {
   right: 0;
   z-index: 1000;
   background: transparent;
-  padding: 8px 16px;
+  padding: 16px 16px 8px;
   box-sizing: border-box;
   display: flex;
   justify-content: center;
@@ -638,7 +638,7 @@ body {
 .categories-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 /* Category Block Card */
@@ -660,9 +660,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
+  min-height: 36px;
   position: relative;
-  padding: 2px 0;
+  padding: 0;
 }
 .category-adder::before {
   content: '';
@@ -743,6 +743,31 @@ body {
   box-sizing: border-box;
 }
 
+.category-adder-actions {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+.category-adder-actions.hidden {
+  display: none;
+}
+.category-adder-actions .btn {
+  flex: 1;
+  justify-content: center;
+  min-width: 76px;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
 .category-title-container {
   display: flex;
   align-items: center;
@@ -778,7 +803,6 @@ body {
   justify-content: center;
   transition: var(--transition);
   flex-shrink: 0;
-  opacity: 0;
 }
 
 .btn-delete-category:hover {
@@ -1901,13 +1925,18 @@ body.dragging-active .category-table-body tr {
 }
 
 /* --- CATEGORY DRAG: compact headers --- */
-body.dragging-category .category-title-container {
-  padding: 10px 16px;
-}
-
 body.dragging-category .category-block {
   min-height: auto;
   border-color: #e2e8f0;
+}
+
+body.dragging-category .category-adder {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.category-adder {
+  transition: opacity 0.25s ease;
 }
 
 /* --- DRAG GHOST --- */
@@ -2023,11 +2052,8 @@ body.dragging-category .category-block {
   align-items: center;
   justify-content: center;
   transition: var(--transition);
-  opacity: 0;
 }
 
-.category-title-container:hover .btn-edit-category,
-.category-title-container:hover .btn-delete-category,
 .cell-task-name:hover .btn-edit-task {
   opacity: 1;
 }
@@ -2170,18 +2196,18 @@ body.dragging-category .category-block {
 /* Category collapse animation (uses --content-height set by JS for smooth expansion) */
 .category-collapsible {
   overflow: hidden;
-  transition: max-height 0.4s ease, opacity 0.35s ease, padding 0.35s ease, margin 0.35s ease;
+  transition: max-height 0.25s ease, opacity 0.25s ease, padding 0.25s ease, margin 0.25s ease;
   max-height: var(--content-height, 5000px);
   opacity: 1;
 }
 
 .category-collapsible.cat-collapsed {
-  max-height: 0 !important;
+  max-height: 0;
   opacity: 0;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .category-collapsible.cat-collapsed .category-footer {
@@ -2266,4 +2292,776 @@ body.dragging-category .category-block {
 .scrollable::-webkit-scrollbar-thumb:hover,
 .suggestions-dropdown::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
+}
+
+/* LOGIN OVERLAY */
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 50%, #f8fafc 100%);
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  padding: 48px 40px 36px;
+  width: 420px;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.login-brand .login-logo {
+  width: 42px;
+  height: 42px;
+  background: var(--primary);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-brand .login-logo svg {
+  width: 22px;
+  height: 22px;
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.login-brand span {
+  font-size: 24px;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: 2px;
+}
+
+.login-hint {
+  margin: 18px 0 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.login-field {
+  position: relative;
+}
+
+.login-field input {
+  width: 100%;
+  padding: 14px 18px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 16px;
+  background: #f8fafc;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.login-field input:focus {
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(130, 180, 64, 0.1);
+  outline: none !important;
+}
+
+.login-field input::placeholder {
+  color: #94a3b8;
+}
+
+.login-field .suggestions-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+  padding: 4px;
+}
+
+.login-field .suggestion-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  border-radius: 8px;
+  transition: background 0.1s;
+}
+
+.login-field .suggestion-item:hover,
+.login-field .suggestion-item.highlighted {
+  background: var(--primary-light);
+}
+
+.app-container.hidden {
+  display: none;
+}
+
+.header-logout-btn {
+  color: #94a3b8;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.header-logout-btn:hover {
+  color: #ef4444 !important;
+}
+
+/* ============================
+   RESPONSIVE / MOBILE
+   ============================ */
+
+@media (max-width: 768px) {
+  .app-container {
+    padding: 80px 8px 16px;
+    gap: 12px;
+  }
+  .categories-container {
+    gap: 6px;
+  }
+
+  /* Category blocks */
+  .category-title-container {
+    padding: 10px 10px;
+    gap: 4px;
+  }
+  .category-title {
+    font-size: 12px;
+    letter-spacing: 0.8px;
+  }
+  .drag-handle-area {
+    padding: 4px;
+  }
+  .btn-edit-category,
+  .btn-delete-category,
+  .btn-collapse-category {
+    padding: 4px;
+  }
+  .category-title-container svg:not(.drag-handle-area svg) {
+    width: 14px;
+    height: 14px;
+  }
+
+  .category-footer {
+    padding: 8px 12px;
+  }
+  .inline-add-task input {
+    max-width: 180px;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  .inline-add-task .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  /* Schedule table */
+  .schedule-table-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+  .schedule-table th,
+  .schedule-table td {
+    padding: 8px;
+  }
+  .schedule-table th {
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+  .schedule-table th.col-task {
+    width: 120px;
+  }
+  .schedule-table td.cell-day {
+    height: 80px;
+    padding: 6px;
+  }
+  .schedule-table td.cell-task-name {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  .shifts-container {
+    gap: 4px;
+  }
+  .cell-add-btn {
+    padding: 3px 0;
+    font-size: 10px;
+  }
+
+  /* Modal */
+  .modal-container {
+    padding: 20px;
+    max-width: 95vw;
+  }
+  .modal-header h2 {
+    font-size: 16px;
+  }
+  .modal-header {
+    margin-bottom: 14px;
+  }
+  .modal-close-btn {
+    top: 12px;
+    right: 12px;
+  }
+  .presets-interface-container {
+    padding: 12px;
+  }
+  .quick-select-grid {
+    gap: 6px;
+  }
+  .preset-btn {
+    padding: 8px 20px 8px 10px;
+  }
+  .add-preset-inline-row {
+    flex-wrap: wrap;
+  }
+  .add-preset-inline-row input {
+    min-width: 100px;
+    flex: 1 1 120px;
+  }
+  .add-preset-inline-row .btn {
+    padding: 0 10px;
+    font-size: 11px;
+  }
+  .form-group {
+    margin-bottom: 14px;
+  }
+  .form-group:last-of-type {
+    margin-bottom: 18px;
+  }
+  .modal-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+  }
+  .modal-footer-row .btn {
+    height: 38px;
+    font-size: 12px;
+  }
+
+  /* People inputs in modal */
+  .people-inputs-container {
+    gap: 6px;
+  }
+  .people-input-row input {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  /* My Tasks */
+  .section-header {
+    padding: 14px 16px;
+  }
+  .section-header h2 {
+    font-size: 16px;
+  }
+  .section-subtitle {
+    font-size: 12px;
+  }
+  .day-column-card {
+    padding: 12px;
+    min-height: 180px;
+  }
+
+  /* Manage Team */
+  .team-management-grid {
+    gap: 16px;
+  }
+  .card-header {
+    padding: 12px 16px;
+  }
+  .card-body {
+    padding: 14px;
+  }
+  .card-body.scrollable {
+    padding: 12px;
+  }
+  .member-item {
+    padding: 10px;
+  }
+
+  /* Category adder */
+  .category-adder-form {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .category-adder-input {
+    min-width: 120px;
+    height: 32px;
+    font-size: 13px;
+  }
+  .category-adder-confirm,
+  .category-adder-cancel {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .btn-add-category-at {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Login */
+  .login-card {
+    padding: 32px 24px 28px;
+  }
+  .login-header .login-logo {
+    width: 36px;
+    height: 36px;
+  }
+  .login-brand span {
+    font-size: 20px;
+  }
+  .login-field input {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-container {
+    padding: 72px 6px 14px;
+    gap: 10px;
+  }
+  .categories-container {
+    gap: 5px;
+  }
+  .header-card {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .hc-logo {
+    width: 28px;
+    height: 28px;
+  }
+  .hc-logo svg {
+    width: 16px;
+    height: 16px;
+  }
+  .nav-tab.hc-tab {
+    padding: 5px 8px;
+    font-size: 10px;
+    gap: 4px;
+  }
+  .hc-date {
+    padding: 3px 6px;
+    gap: 4px;
+  }
+  .hc-date-range {
+    font-size: 10px;
+  }
+  .hc-date-btn {
+    font-size: 12px;
+    padding: 1px 3px;
+  }
+  .hc-actions {
+    padding: 3px 4px;
+  }
+  .hc-action-btn {
+    padding: 3px;
+  }
+  .header-logout-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .category-title-container {
+    padding: 8px 8px;
+    gap: 3px;
+  }
+  .category-title {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+  }
+  .drag-handle-area {
+    padding: 3px;
+  }
+  .btn-edit-category,
+  .btn-delete-category,
+  .btn-collapse-category {
+    padding: 3px;
+  }
+  .category-title-container svg:not(.drag-handle-area svg) {
+    width: 12px;
+    height: 12px;
+  }
+
+  .category-footer {
+    padding: 6px 10px;
+  }
+  .inline-add-task input {
+    max-width: 140px;
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+  .inline-add-task .btn {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+
+  .schedule-table th,
+  .schedule-table td {
+    padding: 5px;
+  }
+  .schedule-table th {
+    font-size: 9px;
+  }
+  .schedule-table-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+  .schedule-table th.col-task {
+    width: 90px;
+  }
+  .schedule-table td.cell-day {
+    height: 64px;
+    padding: 5px;
+  }
+  .schedule-table td.cell-task-name {
+    font-size: 11px;
+    padding: 5px;
+  }
+  .shifts-container {
+    gap: 3px;
+  }
+  .cell-add-btn {
+    padding: 2px 0;
+    font-size: 9px;
+  }
+
+  .modal-container {
+    padding: 16px;
+  }
+  .modal-header h2 {
+    font-size: 15px;
+  }
+  .presets-interface-container {
+    padding: 10px;
+  }
+  .quick-select-grid {
+    gap: 5px;
+  }
+  .preset-btn {
+    padding: 7px 18px 7px 8px;
+  }
+  .add-preset-inline-row input {
+    min-width: 80px;
+  }
+  .modal-footer-row .btn {
+    height: 36px;
+    font-size: 11px;
+  }
+
+  .login-card {
+    padding: 28px 20px 24px;
+  }
+  .login-brand span {
+    font-size: 18px;
+  }
+  .login-field input {
+    padding: 11px 12px;
+    font-size: 13px;
+  }
+
+  .section-header {
+    padding: 12px 14px;
+  }
+  .section-header h2 {
+    font-size: 15px;
+  }
+  .day-column-card {
+    padding: 10px;
+    min-height: 160px;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-container {
+    padding: 64px 4px 10px;
+    gap: 8px;
+  }
+  .header-card {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+  .hc-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .hc-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .hc-logo {
+    width: 24px;
+    height: 24px;
+  }
+  .hc-logo svg {
+    width: 14px;
+    height: 14px;
+  }
+  .nav-tab.hc-tab {
+    padding: 4px 5px;
+    font-size: 9px;
+    gap: 2px;
+  }
+  .hc-date {
+    padding: 2px 4px;
+    gap: 2px;
+  }
+  .hc-date svg:first-child {
+    display: none;
+  }
+  .hc-date-range {
+    font-size: 9px;
+  }
+  .hc-date-btn {
+    font-size: 11px;
+    padding: 1px 2px;
+  }
+  .hc-actions {
+    padding: 2px 2px;
+    gap: 1px;
+  }
+  .hc-action-btn {
+    padding: 2px;
+  }
+  .hc-action-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+  .header-logout-btn {
+    margin-left: 2px;
+  }
+
+  .categories-container {
+    gap: 4px;
+  }
+  .category-title-container {
+    padding: 6px 5px;
+    gap: 2px;
+  }
+  .category-title {
+    font-size: 9px;
+    letter-spacing: 0.4px;
+  }
+  .drag-handle-area {
+    padding: 2px;
+  }
+  .btn-edit-category,
+  .btn-delete-category,
+  .btn-collapse-category {
+    padding: 2px;
+  }
+  .category-title-container svg:not(.drag-handle-area svg) {
+    width: 11px;
+    height: 11px;
+  }
+
+  .category-footer {
+    padding: 5px 6px;
+  }
+  .inline-add-task {
+    gap: 4px;
+  }
+  .inline-add-task input {
+    max-width: 100px;
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+  .inline-add-task .btn {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+
+  .schedule-table-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+  .schedule-table th,
+  .schedule-table td {
+    padding: 3px;
+  }
+  .schedule-table th {
+    font-size: 8px;
+  }
+  .schedule-table th.col-task {
+    width: 70px;
+  }
+  .schedule-table td.cell-day {
+    height: 56px;
+    padding: 3px;
+  }
+  .schedule-table td.cell-task-name {
+    font-size: 10px;
+    padding: 3px;
+  }
+
+  .modal-container {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .modal-header h2 {
+    font-size: 13px;
+  }
+  .modal-close-btn {
+    top: 8px;
+    right: 8px;
+  }
+  .modal-close-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .presets-interface-container {
+    padding: 8px;
+    gap: 8px;
+  }
+  .quick-select-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+  .preset-btn {
+    padding: 5px 16px 5px 6px;
+  }
+  .preset-label {
+    font-size: 10px;
+  }
+  .preset-value {
+    font-size: 9px;
+  }
+  .add-preset-inline-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .add-preset-inline-row input {
+    width: 100%;
+  }
+  .add-preset-inline-row .btn {
+    width: 100%;
+  }
+  .modal-footer-row {
+    gap: 4px;
+  }
+  .modal-footer-row .btn {
+    height: 34px;
+    font-size: 11px;
+  }
+
+  .login-card {
+    padding: 20px 14px 18px;
+    border-radius: 12px;
+  }
+  .login-brand {
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .login-header .login-logo {
+    width: 28px;
+    height: 28px;
+  }
+  .login-brand span {
+    font-size: 15px;
+    letter-spacing: 1.5px;
+  }
+  .login-field input {
+    padding: 10px 10px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+  .login-hint {
+    font-size: 10px;
+    margin-top: 12px;
+  }
+
+  .section-header {
+    padding: 10px 10px;
+  }
+  .section-header h2 {
+    font-size: 13px;
+  }
+  .section-subtitle {
+    font-size: 11px;
+  }
+  .day-column-card {
+    padding: 8px;
+    min-height: 140px;
+  }
+  .day-column-header {
+    padding-bottom: 6px;
+  }
+  .day-name-label {
+    font-size: 10px;
+  }
+
+  .card-header {
+    padding: 8px 10px;
+  }
+  .card-header h3 {
+    font-size: 13px;
+  }
+  .card-body {
+    padding: 8px;
+  }
+  .card-body.scrollable {
+    padding: 8px;
+  }
+  .member-item {
+    padding: 6px;
+  }
+  .member-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  .member-name {
+    font-size: 12px;
+  }
+
+  .category-adder-form {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .category-adder-input {
+    min-width: 80px;
+    height: 28px;
+    font-size: 12px;
+  }
+  .category-adder-confirm,
+  .category-adder-cancel {
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  .btn-add-category-at {
+    width: 22px;
+    height: 22px;
+  }
+
+  .suggestions-dropdown {
+    max-height: 140px;
+  }
+  .suggestion-item {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
 }

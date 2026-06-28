@@ -136,24 +136,39 @@ let state = {
   pendingSaveCallback: null
 };
 
-// --- COLLAPSIBLE CATEGORIES ---
-let collapsedCategories = new Set();
+// --- COLLAPSIBLE CATEGORIES (per-profile) ---
+function getCollapsedCategories() {
+  const profile = getCurrentProfile();
+  if (!profile) return new Set();
+  const key = 'bldsrv_collapsed_' + profile.id;
+  const stored = localStorage.getItem(key);
+  return stored ? new Set(JSON.parse(stored)) : new Set();
+}
+
+function saveCollapsedCategories(set) {
+  const profile = getCurrentProfile();
+  if (!profile) return;
+  const key = 'bldsrv_collapsed_' + profile.id;
+  localStorage.setItem(key, JSON.stringify([...set]));
+}
 
 function toggleCategoryCollapse(categoryId) {
+  const collapsed = getCollapsedCategories();
   const el = document.querySelector(`.category-block[data-category-id="${categoryId}"] .category-collapsible`);
-  if (collapsedCategories.has(categoryId)) {
-    collapsedCategories.delete(categoryId);
+  if (collapsed.has(categoryId)) {
+    collapsed.delete(categoryId);
     if (el) {
       el.style.setProperty('--content-height', el.scrollHeight + 'px');
       el.classList.remove('cat-collapsed');
     }
   } else {
-    collapsedCategories.add(categoryId);
+    collapsed.add(categoryId);
     if (el) {
       el.style.setProperty('--content-height', el.scrollHeight + 'px');
       el.classList.add('cat-collapsed');
     }
   }
+  saveCollapsedCategories(collapsed);
 }
 
 // --- UNDO / REDO SYSTEM (200 actions) ---
@@ -272,16 +287,24 @@ function initApp() {
   initWeek();
   saveStateToStorage();
 
+  const forceLogin = window.location.search.includes('login');
   const savedProfileId = localStorage.getItem('bldsrv_active_profile');
   const exists = state.employees.some(e => e.id === savedProfileId);
-  if (savedProfileId && exists) {
+  if (!forceLogin && savedProfileId && exists) {
     state.currentProfileId = savedProfileId;
+    proceedWithInit();
   } else {
-    const admin = state.employees.find(e => e.role === 'Administrator');
-    state.currentProfileId = admin ? admin.id : state.employees[0]?.id || '';
-    localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
+    showLoginScreen();
   }
+}
 
+function proceedWithInit() {
+  const profile = state.employees.find(e => e.id === state.currentProfileId);
+  if (profile && profile.role === 'Osoba') {
+    state.activeTab = 'my-tasks';
+  } else {
+    state.activeTab = 'full-schedule';
+  }
   setupEventListeners();
   populateProfileDropdown();
   updateRoleMode();
@@ -289,6 +312,89 @@ function initApp() {
   updateWeekDisplay();
   renderActiveView();
   updateUndoRedoButtons();
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.querySelector('.app-container').classList.remove('hidden');
+}
+
+function switchProfile() {
+  localStorage.removeItem('bldsrv_active_profile');
+  location.reload();
+}
+
+function showLoginScreen() {
+  const overlay = document.getElementById('loginOverlay');
+  overlay.classList.remove('hidden');
+  document.querySelector('.app-container').classList.add('hidden');
+  const input = document.getElementById('loginProfileInput');
+  const dropdown = document.getElementById('loginSuggestions');
+  
+  input.addEventListener('input', () => {
+    const query = input.value.trim();
+    if (!query) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
+    const clean = query.toLowerCase();
+    const matches = state.employees.filter(e => e.name.toLowerCase().includes(clean));
+    if (!matches.length) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
+    dropdown.innerHTML = '';
+    dropdown.style.display = 'block';
+    let idx = 0;
+    for (const emp of matches) {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item' + (idx === 0 ? ' highlighted' : '');
+      item.dataset.index = idx;
+      item.innerHTML = `<span class="suggestion-name">${emp.name}</span>`;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        completeLogin(emp.id);
+      });
+      dropdown.appendChild(item);
+      idx++;
+    }
+    state._loginIdx = 0;
+  });
+  
+  input.addEventListener('keydown', (e) => {
+    const items = dropdown.querySelectorAll('.suggestion-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const cur = state._loginIdx || 0;
+      const next = Math.min(cur + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle('highlighted', i === next));
+      state._loginIdx = next;
+      if (items[next]) items[next].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const cur = state._loginIdx || 0;
+      const prev = Math.max(cur - 1, 0);
+      items.forEach((el, i) => el.classList.toggle('highlighted', i === prev));
+      state._loginIdx = prev;
+      if (items[prev]) items[prev].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const idx = state._loginIdx !== undefined ? state._loginIdx : 0;
+      const sel = items[idx];
+      if (sel) {
+        const name = sel.querySelector('.suggestion-name').textContent;
+        const emp = state.employees.find(e => e.name === name);
+        if (emp) completeLogin(emp.id);
+      }
+    } else if (e.key === 'Escape') {
+      dropdown.innerHTML = '';
+      dropdown.style.display = 'none';
+      input.blur();
+    }
+  });
+  
+  input.addEventListener('blur', () => {
+    setTimeout(() => { dropdown.innerHTML = ''; dropdown.style.display = 'none'; }, 200);
+  });
+  
+  input.focus();
+}
+
+function completeLogin(empId) {
+  state.currentProfileId = empId;
+  localStorage.setItem('bldsrv_active_profile', empId);
+  proceedWithInit();
 }
 
 function migrateOldNaming() {
@@ -530,10 +636,6 @@ function renderFullScheduleView() {
   const profile = getCurrentProfile();
   const isAdmin = profile && profile.role === 'Administrator';
   
-  if (isAdmin) {
-    container.appendChild(createCategoryAdder(0));
-  }
-  
   if (state.categories.length === 0) {
     if (!isAdmin) {
       container.innerHTML = `<p class="no-tasks-text">Brak zdefiniowanych kategorii.</p>`;
@@ -570,14 +672,15 @@ function renderFullScheduleView() {
       `;
     }
     
-    const isCollapsed = collapsedCategories.has(cat.id);
-    const collapseBtn = isAdmin ? `
+    const collapsed = getCollapsedCategories();
+    const isCollapsed = collapsed.has(cat.id);
+    const collapseBtn = `
       <button class="btn-collapse-category" onclick="toggleCategoryCollapse('${cat.id}')" title="${isCollapsed ? 'Rozwiń kategorię' : 'Zwiń kategorię'}">
         <svg class="chevron-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </button>
-    ` : '';
+    `;
     const catDragHandle = isAdmin ? `
       <span class="drag-handle-area grip" title="Przeciągnij aby przenieść">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -898,6 +1001,8 @@ function renderFullScheduleView() {
   }
 }
 
+let openCategoryAdder = null;
+
 // --- MOVE CATEGORIES & TASKS (ARROW BUTTONS) ---
 function moveCategory(categoryId, direction) {
   const index = state.categories.findIndex(c => c.id === categoryId);
@@ -929,7 +1034,7 @@ function moveTask(categoryId, taskName, direction) {
 // --- CUSTOM MOUSE DRAG & DROP ---
 let drag = { active: false, source: null, type: '', ghost: null, startY: 0 };
 
-function initDrag(element, type, sourceId, sourceName) {
+function initDrag(element, type, sourceId, sourceName, clickY) {
   drag.active = true;
   drag.source = element;
   drag.type = type;
@@ -937,15 +1042,31 @@ function initDrag(element, type, sourceId, sourceName) {
   
   document.body.classList.add('dragging-active');
   element.classList.add('dragging');
+  element.style.borderLeft = '4px solid var(--primary)';
   
   if (type === 'category') {
     document.body.classList.add('dragging-category');
-    // Collapse ALL categories (including dragged one) so only headers are visible
+    if (openCategoryAdder) openCategoryAdder._cancel();
+    // Lock scroll position so collapsing doesn't affect viewport
+    drag._savedScrollY = window.scrollY;
+    document.documentElement.style.overflowY = 'scroll';
+    document.body.style.position = 'fixed';
+    document.body.style.top = -drag._savedScrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    // Collapse ALL categories (including dragged) so only title bars remain
+    let totalShrink = 0;
     document.querySelectorAll('.category-block .category-collapsible').forEach(el => {
       el.dataset.dragForceHidden = '1';
       el.style.setProperty('--content-height', el.scrollHeight + 'px');
       el.classList.add('cat-collapsed');
+      totalShrink += parseInt(el.style.getPropertyValue('--content-height')) || 0;
     });
+    // Scroll up by the collapsed content so viewport fills nicely
+    const curTop = parseInt(document.body.style.top) || 0;
+    const scrollUp = Math.min(totalShrink, Math.abs(curTop));
+    document.body.style.top = (curTop + scrollUp) + 'px';
+    drag._savedScrollY -= scrollUp;
   }
   
   const ghost = document.createElement('div');
@@ -976,15 +1097,32 @@ function initDrag(element, type, sourceId, sourceName) {
 
 function moveDragGhost(e) {
   if (!drag.ghost) return;
-  drag.ghost.style.left = (e.clientX + 16) + 'px';
-  drag.ghost.style.top = (e.clientY - 20) + 'px';
+  const y = eventY(e);
+  const x = eventX(e);
+  drag.ghost.style.left = (x + 16) + 'px';
+  drag.ghost.style.top = (y - 20) + 'px';
   
-  // Auto-scroll when near viewport edges
-  const scrollMargin = 50;
-  if (e.clientY < scrollMargin) {
-    window.scrollBy(0, -(scrollMargin - e.clientY) * 0.4);
-  } else if (e.clientY > window.innerHeight - scrollMargin) {
-    window.scrollBy(0, (e.clientY - (window.innerHeight - scrollMargin)) * 0.4);
+  // Auto-scroll when near viewport edges (rAF loop for smoothness)
+  const topBarBottom = 96;
+  const edgeZone = 50;
+  const inTop = y < topBarBottom + edgeZone;
+  const inBottom = y > window.innerHeight - edgeZone;
+  if (inTop) {
+    drag._autoScrollDir = -1;
+    drag._autoScrollSpeed = Math.min(1, (topBarBottom + edgeZone - y) / edgeZone);
+    if (!drag._autoScrolling) {
+      drag._autoScrolling = true;
+      requestAnimationFrame(tickAutoScroll);
+    }
+  } else if (inBottom) {
+    drag._autoScrollDir = 1;
+    drag._autoScrollSpeed = (y - (window.innerHeight - edgeZone)) / edgeZone;
+    if (!drag._autoScrolling) {
+      drag._autoScrolling = true;
+      requestAnimationFrame(tickAutoScroll);
+    }
+  } else if (drag._autoScrolling) {
+    drag._autoScrolling = false;
   }
   
   if (drag.type === 'category') {
@@ -996,7 +1134,7 @@ function moveDragGhost(e) {
       if (el === drag.source) return;
       const r = el.getBoundingClientRect();
       const mid = r.top + r.height / 2;
-      const dist = Math.abs(e.clientY - mid);
+      const dist = Math.abs(y - mid);
       if (dist < bestDist) {
         bestDist = dist;
         bestEl = el;
@@ -1004,8 +1142,8 @@ function moveDragGhost(e) {
       }
     });
     if (bestEl) {
-      bestEl.classList.toggle('drag-before', e.clientY < bestMid);
-      bestEl.classList.toggle('drag-after', e.clientY >= bestMid);
+      bestEl.classList.toggle('drag-before', y < bestMid);
+      bestEl.classList.toggle('drag-after', y >= bestMid);
     }
   } else if (drag.dropLine) {
     // Tasks: show a clean horizontal line between rows
@@ -1017,7 +1155,7 @@ function moveDragGhost(e) {
     let lineY = null;
     for (const row of rows) {
       const r = row.getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) {
+      if (y < r.top + r.height / 2) {
         lineY = r.top;
         break;
       }
@@ -1036,8 +1174,33 @@ function moveDragGhost(e) {
   }
 }
 
+function tickAutoScroll() {
+  if (!drag._autoScrolling) return;
+  const maxSpeed = 7;
+  const t = drag._autoScrollSpeed;
+  const eased = t * t; // quadratic: slow near inner edge, fast near outer
+  const scrollDelta = drag._autoScrollDir * eased * maxSpeed;
+  
+  if (document.body.style.position === 'fixed') {
+    const bodyHeight = document.body.scrollHeight;
+    const maxY = Math.max(0, bodyHeight - window.innerHeight);
+    let newY = (drag._savedScrollY || 0) + scrollDelta;
+    newY = Math.max(0, Math.min(maxY, newY));
+    const cur = parseInt(document.body.style.top) || 0;
+    document.body.style.top = (cur - (newY - (drag._savedScrollY || 0))) + 'px';
+    drag._savedScrollY = newY;
+  } else {
+    window.scrollBy(0, scrollDelta);
+  }
+  
+  requestAnimationFrame(tickAutoScroll);
+}
+
 function endDrag(e) {
   if (!drag.active) return;
+  const dropY = eventY(e);
+  // Stop auto-scroll loop
+  drag._autoScrolling = false;
   
   const targets = drag.type === 'category'
     ? document.querySelectorAll('#categoriesContainer .category-block')
@@ -1053,18 +1216,18 @@ function endDrag(e) {
       if (el === drag.source) return;
       const r = el.getBoundingClientRect();
       const mid = r.top + r.height / 2;
-      const dist = Math.abs(e.clientY - mid);
+      const dist = Math.abs(dropY - mid);
       if (dist < bestDist) {
         bestDist = dist;
         target = el;
-        pos = e.clientY < mid ? 'before' : 'after';
+        pos = dropY < mid ? 'before' : 'after';
       }
     });
   } else {
     const rows = Array.from(targets).filter(el => el !== drag.source);
     for (const row of rows) {
       const r = row.getBoundingClientRect();
-      if (e.clientY < r.top + r.height / 2) {
+      if (dropY < r.top + r.height / 2) {
         target = row;
         pos = 'before';
         break;
@@ -1081,13 +1244,12 @@ function endDrag(e) {
       const draggedId = drag.source.getAttribute('data-category-id');
       const targetId = target.getAttribute('data-category-id');
       if (draggedId !== targetId) {
-        const container = document.getElementById('categoriesContainer');
-        const ref = pos === 'after' ? target.nextElementSibling : target;
-        container.insertBefore(drag.source, ref);
         const draggedIndex = state.categories.findIndex(c => c.id === draggedId);
-        const insertAt = Array.from(container.children).indexOf(drag.source);
+        const targetIndex = state.categories.findIndex(c => c.id === targetId);
+        const insertAt = pos === 'after' ? targetIndex + 1 : targetIndex;
         const [removed] = state.categories.splice(draggedIndex, 1);
-        state.categories.splice(insertAt, 0, removed);
+        const adjusted = draggedIndex < targetIndex ? insertAt - 1 : insertAt;
+        state.categories.splice(adjusted, 0, removed);
         recordAction();
         saveStateToStorage();
         didMove = true;
@@ -1096,16 +1258,15 @@ function endDrag(e) {
       const draggedTask = drag.source.getAttribute('data-task-name');
       const targetTask = target.getAttribute('data-task-name');
       if (draggedTask !== targetTask) {
-        const tbody = target.closest('tbody');
-        const ref = pos === 'after' ? target.nextElementSibling : target;
-        tbody.insertBefore(drag.source, ref);
         const catIndex = state.categories.findIndex(c => c.id === drag.taskCategoryId);
         if (catIndex !== -1) {
           const tasks = state.categories[catIndex].tasks;
           const draggedIndex = tasks.indexOf(draggedTask);
-          const insertAt = Array.from(tbody.querySelectorAll('tr:not(.add-task-row)')).indexOf(drag.source);
+          const targetIndex = tasks.indexOf(targetTask);
+          const insertAt = pos === 'after' ? targetIndex + 1 : targetIndex;
           const [removed] = tasks.splice(draggedIndex, 1);
-          tasks.splice(insertAt, 0, removed);
+          const adjusted = draggedIndex < targetIndex ? insertAt - 1 : insertAt;
+          tasks.splice(adjusted, 0, removed);
           recordAction();
           saveStateToStorage();
           didMove = true;
@@ -1114,58 +1275,137 @@ function endDrag(e) {
     }
   }
   
-  const movedEl = drag.source;
-  cleanupDrag();
+  const movedId = drag.source?.getAttribute('data-category-id') || drag.source?.getAttribute('data-task-name');
+  const wantCollapsed = getCollapsedCategories();
   
-  // Add drop-highlight AFTER full cleanup so it doesn't compete with category expansion
-  if (didMove && movedEl) {
-    movedEl.classList.add('drop-highlight');
-    setTimeout(() => movedEl.classList.remove('drop-highlight'), 800);
+  cleanupDrag({ skipRestore: true });
+  
+  // Freeze scroll + force scrollbar visible so collapse/expand doesn't jump
+  const freezeY = window.scrollY;
+  document.documentElement.style.overflowY = 'scroll';
+  document.body.style.position = 'fixed';
+  document.body.style.top = -freezeY + 'px';
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  
+  if (didMove) {
+    renderFullScheduleView();
+  }
+  
+  // Collapse non-user-collapsed elements silently, then expand with transition
+  const toExpand = [];
+  document.querySelectorAll('.category-block .category-collapsible').forEach(el => {
+    const block = el.closest('.category-block');
+    if (!block) return;
+    const id = block.getAttribute('data-category-id');
+    if (id && !wantCollapsed.has(id)) {
+      el.style.setProperty('--content-height', el.scrollHeight + 'px');
+      el.style.transition = 'none';
+      el.classList.add('cat-collapsed');
+      toExpand.push(el);
+    }
+  });
+  
+  if (toExpand.length) {
+    void toExpand[0].offsetHeight;
+    for (const el of toExpand) {
+      el.style.transition = '';
+      el.classList.remove('cat-collapsed');
+    }
+  }
+  
+  // Unfreeze scroll after the transition ends
+  setTimeout(() => {
+    document.documentElement.style.overflowY = '';
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    window.scrollTo(0, freezeY);
+  }, 260);
+  
+  // Drop highlight
+  if (didMove && movedId) {
+    const el = document.querySelector(`[data-category-id="${movedId}"]`) || document.querySelector(`[data-task-name="${movedId}"]`);
+    if (el) {
+      el.classList.add('drop-highlight');
+      setTimeout(() => el.classList.remove('drop-highlight'), 800);
+    }
   }
 }
 
-function cleanupDrag() {
+function cleanupDrag(options = {}) {
   if (drag.ghost) { drag.ghost.remove(); drag.ghost = null; }
   if (drag.dropLine) { drag.dropLine.remove(); drag.dropLine = null; }
   document.querySelectorAll('.category-block, .category-table-body tr').forEach(el => {
     el.classList.remove('dragging', 'drag-before', 'drag-after');
   });
   document.body.classList.remove('dragging-active', 'dragging-category');
-  // Force reflow so browser registers transitions are active again
-  // before we trigger expansion (otherwise max-height transition won't fire)
-  void document.body.offsetHeight;
-  // Restore categories that were force-collapsed during drag
-  document.querySelectorAll('.category-collapsible[data-drag-force-hidden]').forEach(el => {
-    delete el.dataset.dragForceHidden;
-    const block = el.closest('.category-block');
-    if (block) {
-      const id = block.getAttribute('data-category-id');
-      if (id && !collapsedCategories.has(id)) {
-        el.classList.remove('cat-collapsed');
+  document.documentElement.style.overflowY = '';
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.paddingRight = '';
+  if (drag._savedScrollY !== undefined) {
+    window.scrollTo(0, drag._savedScrollY);
+    delete drag._savedScrollY;
+  }
+  if (!options.skipRestore) {
+    // Force reflow so browser registers transitions are active again
+    void document.body.offsetHeight;
+    // Restore categories that were force-collapsed during drag
+    document.querySelectorAll('.category-collapsible[data-drag-force-hidden]').forEach(el => {
+      delete el.dataset.dragForceHidden;
+      const block = el.closest('.category-block');
+      if (block) {
+        const id = block.getAttribute('data-category-id');
+        if (id && !getCollapsedCategories().has(id)) {
+          el.classList.remove('cat-collapsed');
+        }
       }
-    }
-  });
+    });
+  }
   drag.active = false;
   drag.source = null;
   drag.type = '';
 }
 
+function eventY(e) {
+  if (e.touches) return e.touches[0].clientY;
+  if (e.changedTouches) return e.changedTouches[0].clientY;
+  return e.clientY;
+}
+function eventX(e) {
+  if (e.touches) return e.touches[0].clientX;
+  if (e.changedTouches) return e.changedTouches[0].clientX;
+  return e.clientX;
+}
+
 document.addEventListener('mousemove', (e) => {
   if (drag.active) moveDragGhost(e);
 });
+document.addEventListener('touchmove', (e) => {
+  if (drag.active) { e.preventDefault(); moveDragGhost(e); }
+}, { passive: false });
 
 document.addEventListener('mouseup', (e) => {
+  if (drag.active) endDrag(e);
+});
+document.addEventListener('touchend', (e) => {
   if (drag.active) endDrag(e);
 });
 
 function enableCategoryDragDrop() {
   document.getElementById('categoriesContainer').querySelectorAll('.category-title-container .drag-handle-area').forEach(handle => {
-    handle.addEventListener('mousedown', (e) => {
+    function onStart(e) {
       e.preventDefault();
       const block = handle.closest('.category-block');
       const name = block.querySelector('.category-title').textContent;
-      initDrag(block, 'category', block.getAttribute('data-category-id'), name);
-    });
+      initDrag(block, 'category', block.getAttribute('data-category-id'), name, eventY(e));
+    }
+    handle.addEventListener('mousedown', onStart);
+    handle.addEventListener('touchstart', onStart, { passive: false });
   });
 }
 
@@ -1173,14 +1413,16 @@ function enableTaskDragDrop(categoryId) {
   const tbody = document.querySelector(`.category-table-body[data-category-id="${categoryId}"]`);
   if (!tbody) return;
   tbody.querySelectorAll('.drag-handle-area').forEach(handle => {
-    handle.addEventListener('mousedown', (e) => {
+    function onStart(e) {
       e.preventDefault();
       const row = handle.closest('tr');
       if (row.classList.contains('add-task-row')) return;
       const name = row.getAttribute('data-task-name') || '';
       drag.taskCategoryId = categoryId;
       initDrag(row, 'task', name, name);
-    });
+    }
+    handle.addEventListener('mousedown', onStart);
+    handle.addEventListener('touchstart', onStart, { passive: false });
   });
 }
 
@@ -1267,6 +1509,8 @@ function createCategoryAdder(insertIndex) {
     </button>
     <div class="category-adder-form hidden">
       <input type="text" class="category-adder-input" placeholder="Nazwa kategorii..." autocomplete="off">
+    </div>
+    <div class="category-adder-actions hidden">
       <button class="btn btn-success btn-sm category-adder-confirm">Dodaj</button>
       <button class="btn btn-text btn-sm category-adder-cancel">Anuluj</button>
     </div>
@@ -1275,13 +1519,30 @@ function createCategoryAdder(insertIndex) {
   const btnAdd = div.querySelector('.btn-add-category-at');
   const form = div.querySelector('.category-adder-form');
   const input = div.querySelector('.category-adder-input');
+  const actions = div.querySelector('.category-adder-actions');
   const confirmBtn = div.querySelector('.category-adder-confirm');
   const cancelBtn = div.querySelector('.category-adder-cancel');
   
-  btnAdd.addEventListener('click', () => {
+  btnAdd.addEventListener('click', (e) => {
+    if (openCategoryAdder && openCategoryAdder !== div) {
+      openCategoryAdder._cancel();
+    }
+    openCategoryAdder = div;
+    
     btnAdd.classList.add('hidden');
     div.classList.add('adder-form-open');
     form.classList.remove('hidden');
+    input.focus();
+    
+    const actionsW = 184;
+    let left = e.clientX - actionsW / 2;
+    let top = e.clientY + 10;
+    if (left < 8) left = 8;
+    if (left + actionsW > window.innerWidth - 8) left = window.innerWidth - actionsW - 8;
+    if (top + 40 > window.innerHeight) top = e.clientY - 50;
+    actions.style.left = left + 'px';
+    actions.style.top = top + 'px';
+    actions.classList.remove('hidden');
     input.focus();
   });
   
@@ -1295,9 +1556,12 @@ function createCategoryAdder(insertIndex) {
   const cancel = () => {
     input.value = '';
     form.classList.add('hidden');
+    actions.classList.add('hidden');
     div.classList.remove('adder-form-open');
     btnAdd.classList.remove('hidden');
+    if (openCategoryAdder === div) openCategoryAdder = null;
   };
+  div._cancel = cancel;
   
   confirmBtn.addEventListener('click', doAdd);
   cancelBtn.addEventListener('click', cancel);
@@ -2288,6 +2552,8 @@ function setupEventListeners() {
     showToast(`Przełączono profil na: ${getCurrentProfile().name}`);
   });
 
+  document.getElementById('btnSwitchProfile').addEventListener('click', switchProfile);
+
   const btnPrev = document.getElementById('btnDatePrev');
   const btnNext = document.getElementById('btnDateNext');
   if (btnPrev) btnPrev.addEventListener('click', () => navigateWeek(-1));
@@ -2454,26 +2720,16 @@ function setupEventListeners() {
       }
     }
     
-    // Keyboard Shortcuts for Undo / Redo (Ctrl+Z / Cmd+Z, Ctrl+Y / Cmd+Y)
-    const active = document.activeElement;
-    const isEditingText = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-    if (isEditingText) return;
-    
+    // Keyboard Shortcuts for Undo / Redo
     const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-    const profile = getCurrentProfile();
-    const isAdmin = profile && profile.role === 'Administrator';
     
-    if (isAdmin && isCmdOrCtrl) {
-      if (e.key.toLowerCase() === 'z') {
+    if (isCmdOrCtrl) {
+      if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
-        if (e.shiftKey) {
-          redo(); 
-        } else {
-          undo();
-        }
-      } else if (e.key.toLowerCase() === 'y') {
+        undo();
+      } else if (e.key.toLowerCase() === 'z' && e.shiftKey) {
         e.preventDefault();
-        redo(); 
+        redo();
       }
     }
   });
