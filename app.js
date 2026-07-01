@@ -286,6 +286,7 @@ function initApp() {
   migrateOldNaming();
   initWeek();
   saveStateToStorage();
+  initGlobalTooltip();
 
   const forceLogin = window.location.search.includes('login');
   const savedProfileId = localStorage.getItem('bldsrv_active_profile');
@@ -314,6 +315,7 @@ function proceedWithInit() {
   updateUndoRedoButtons();
   document.getElementById('loginOverlay').classList.add('hidden');
   document.querySelector('.app-container').classList.remove('hidden');
+  initMobile();
 }
 
 function switchProfile() {
@@ -559,7 +561,14 @@ function renderMyTasksView() {
   }
   
   const container = document.getElementById('myTasksGrid');
-  container.innerHTML = '';
+    container.innerHTML = '';
+  
+  function getTaskCategory(taskName) {
+    for (const cat of state.categories) {
+      if (cat.tasks.includes(taskName)) return cat.name;
+    }
+    return '';
+  }
   
   DAYS_OF_WEEK.forEach((day, index) => {
     const isToday = index === currentDayIndex;
@@ -600,12 +609,16 @@ function renderMyTasksView() {
           coworkersHtml += `</ul></div>`;
         }
         
+        const categoryName = getTaskCategory(shift.taskId);
         shiftsHtml += `
           <div class="shift-card">
             <div class="shift-card-header">
               <span class="employee-name">${shift.time}</span>
             </div>
-            <span class="shift-task-badge">${shift.taskId}</span>
+            <div class="task-info">
+              ${categoryName ? `<span class="task-category">${categoryName}</span>` : ''}
+              <span class="task-name">${shift.taskId}</span>
+            </div>
             ${coworkersHtml}
           </div>
         `;
@@ -999,6 +1012,7 @@ function renderFullScheduleView() {
     enableCategoryDragDrop();
     state.categories.forEach(cat => enableTaskDragDrop(cat.id));
   }
+  collapseCategoriesOnMobile();
 }
 
 let openCategoryAdder = null;
@@ -1817,6 +1831,11 @@ function deleteEmployee(empId) {
 
 // --- SHIFT ASSIGNMENT MODAL LOGIC ---
 function openAssignModal(task, day, shiftId = null) {
+  if (window.innerWidth <= 768) {
+    openBottomSheet(task, day, shiftId);
+    return;
+  }
+  // ... existing desktop modal logic
   state.editingShiftId = shiftId;
   state.activeCellTask = task;
   state.activeCellDay = day;
@@ -1824,6 +1843,7 @@ function openAssignModal(task, day, shiftId = null) {
   const modal = document.getElementById('assignModal');
   const titleTask = document.getElementById('modalTaskName');
   const titleDay = document.getElementById('modalDayName');
+  const titleCategory = document.getElementById('modalCategoryName');
   const inputTime = document.getElementById('modalTimeInput');
   const deleteBtn = document.getElementById('btnDeleteShift');
   const mainContent = document.getElementById('modalMainContent');
@@ -1834,6 +1854,12 @@ function openAssignModal(task, day, shiftId = null) {
   
   titleTask.textContent = task;
   titleDay.textContent = day;
+
+  let catName = '';
+  for (const cat of state.categories) {
+    if (cat.tasks.includes(task)) { catName = cat.name; break; }
+  }
+  titleCategory.textContent = catName ? `${catName} · ` : '';
   
   if (shiftId) {
     const shift = state.shifts.find(s => s.id === shiftId);
@@ -2731,6 +2757,363 @@ function setupEventListeners() {
         e.preventDefault();
         redo();
       }
+    }
+  });
+}
+
+// --- GLOBAL TOOLTIP ---
+function initGlobalTooltip() {
+  const tooltip = document.getElementById('globalTooltip');
+
+  document.querySelectorAll('.info-tip').forEach(el => {
+    let hideTimeout;
+
+    el.addEventListener('mouseenter', () => {
+      clearTimeout(hideTimeout);
+      const html = el.getAttribute('data-tip-html');
+      if (!html) return;
+      tooltip.innerHTML = html;
+      const rect = el.getBoundingClientRect();
+      let left = rect.right + 10;
+      let top = rect.top + rect.height / 2;
+      // Show off-screen first to measure
+      tooltip.style.left = '-9999px';
+      tooltip.style.top = '-9999px';
+      tooltip.classList.remove('hidden');
+      const tw = tooltip.offsetWidth;
+      const th = tooltip.offsetHeight;
+      top -= th / 2;
+      if (left + tw > window.innerWidth - 10) {
+        left = rect.left - tw - 10;
+      }
+      if (top < 10) top = 10;
+      if (top + th > window.innerHeight - 10) {
+        top = window.innerHeight - th - 10;
+      }
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    });
+
+    el.addEventListener('mouseleave', () => {
+      hideTimeout = setTimeout(() => {
+        tooltip.classList.add('hidden');
+      }, 80);
+    });
+  });
+}
+
+// --- MOBILE: HAMBURGER MENU ---
+function initMobileMenu() {
+  const btn = document.getElementById('btnHamburger');
+  const overlay = document.getElementById('mobileMenuOverlay');
+  const panel = document.getElementById('mobileMenuPanel');
+  const closeBtn = document.getElementById('btnCloseMenu');
+
+  function openMenu() { overlay.classList.remove('hidden'); }
+  function closeMenu() { overlay.classList.add('hidden'); }
+
+  btn.addEventListener('click', openMenu);
+  closeBtn.addEventListener('click', closeMenu);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeMenu(); });
+
+  // Menu item clicks -> switch tab
+  document.querySelectorAll('.mobile-menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const tab = item.getAttribute('data-tab');
+      if (tab) switchTab(tab);
+      closeMenu();
+    });
+  });
+
+  // Switch profile
+  document.getElementById('btnMobileSwitchProfile').addEventListener('click', () => {
+    closeMenu();
+    document.getElementById('btnSwitchProfile').click();
+  });
+}
+
+// --- MOBILE: BOTTOM SHEET ---
+let bottomSheetCallback = null;
+
+function renderBottomSheetPeopleInputs() {
+  const container = document.getElementById('bottomSheetPeopleContainer');
+  container.innerHTML = '';
+
+  state.modalPeople.forEach((nameValue, index) => {
+    const row = document.createElement('div');
+    row.className = 'autocomplete-row';
+    row.setAttribute('data-index', index);
+
+    let removeBtnHtml = '';
+    if (state.modalPeople.length > 1) {
+      removeBtnHtml = `
+        <button type="button" class="btn-remove-row" onclick="removeBottomSheetPeopleRow(${index})" title="Usuń wiersz">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      `;
+    }
+
+    row.innerHTML = `
+      <input type="text" class="modal-person-input" placeholder="Wpisz imię i nazwisko..." value="${escapeHtml(nameValue)}" autocomplete="off">
+      <div class="suggestions-dropdown hidden"></div>
+      ${removeBtnHtml}
+    `;
+
+    container.appendChild(row);
+
+    const input = row.querySelector('.modal-person-input');
+    const dropdown = row.querySelector('.suggestions-dropdown');
+
+    input.addEventListener('input', (e) => {
+      let val = e.target.value;
+      if (val.endsWith(',')) {
+        val = val.slice(0, -1);
+        let chosenName = val.trim();
+        const suggestions = dropdown.querySelectorAll('.suggestion-item');
+        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+          chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+        }
+        state.modalPeople[index] = chosenName;
+        state.modalPeople.push('');
+        renderBottomSheetPeopleInputs();
+        focusPeopleInputRow(state.modalPeople.length - 1);
+        return;
+      }
+      state.modalPeople[index] = val;
+      showAutocompleteSuggestions(index, val);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const val = e.target.value;
+      const suggestions = dropdown.querySelectorAll('.suggestion-item');
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (suggestions.length > 0) {
+          state.activeSuggestionIndex = (state.activeSuggestionIndex + 1) % suggestions.length;
+          highlightSuggestion(dropdown);
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (suggestions.length > 0) {
+          state.activeSuggestionIndex = (state.activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+          highlightSuggestion(dropdown);
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dropdown.classList.contains('hidden')) {
+          if (state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+            const selectedName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+            selectAutocompleteSuggestion(index, selectedName);
+          } else {
+            dropdown.classList.add('hidden');
+            state.activeSuggestionIndex = -1;
+            const len = input.value.length;
+            input.setSelectionRange(len, len);
+          }
+        } else {
+          if (index < state.modalPeople.length - 1) {
+            focusPeopleInputRow(index + 1);
+          } else {
+            document.getElementById('bottomSheetTimeInput').focus();
+          }
+        }
+      } else if (e.key === ',') {
+        e.preventDefault();
+        e.stopPropagation();
+        let chosenName = val.trim();
+        if (!dropdown.classList.contains('hidden') && state.activeSuggestionIndex !== -1 && suggestions[state.activeSuggestionIndex]) {
+          chosenName = suggestions[state.activeSuggestionIndex].getAttribute('data-name');
+        }
+        state.modalPeople[index] = chosenName;
+        state.modalPeople.push('');
+        renderBottomSheetPeopleInputs();
+        focusPeopleInputRow(state.modalPeople.length - 1);
+      }
+    });
+
+    input.addEventListener('focus', () => {
+      if (input.value.trim() !== '') {
+        showAutocompleteSuggestions(index, input.value);
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        dropdown.classList.add('hidden');
+        state.activeSuggestionIndex = -1;
+      }, 200);
+    });
+  });
+
+  // Add person button
+  const addBtn = document.createElement('div');
+  addBtn.className = 'add-person-row-btn-container';
+  addBtn.innerHTML = `<button type="button" class="btn-add-person-row" onclick="addBottomSheetPersonRow()">+</button>`;
+  container.appendChild(addBtn);
+}
+
+function addBottomSheetPersonRow() {
+  state.modalPeople.push('');
+  renderBottomSheetPeopleInputs();
+  setTimeout(() => focusPeopleInputRow(state.modalPeople.length - 1), 50);
+}
+
+function removeBottomSheetPeopleRow(index) {
+  if (state.modalPeople.length <= 1) return;
+  state.modalPeople.splice(index, 1);
+  renderBottomSheetPeopleInputs();
+}
+
+function openBottomSheet(task, day, shiftId = null) {
+  const overlay = document.getElementById('bottomSheetOverlay');
+  const taskName = document.getElementById('bottomSheetTaskName');
+  const timeInput = document.getElementById('bottomSheetTimeInput');
+
+  taskName.textContent = task;
+
+  state.activeCellTask = task;
+  state.activeCellDay = day;
+  state.editingShiftId = shiftId;
+
+  const deleteBtn = document.getElementById('btnBottomSheetDelete');
+
+  if (shiftId) {
+    const shift = state.shifts.find(s => s.id === shiftId);
+    if (shift) {
+      const emp = state.employees.find(e => e.id === shift.employeeId);
+      state.modalPeople = [emp ? emp.name : ''];
+      timeInput.value = shift.time;
+      deleteBtn.classList.remove('hidden');
+    }
+  } else {
+    state.modalPeople = [''];
+    timeInput.value = '08:00–12:00';
+    deleteBtn.classList.add('hidden');
+  }
+
+  renderBottomSheetPeopleInputs();
+  overlay.classList.remove('hidden');
+}
+
+function closeBottomSheet() {
+  document.getElementById('bottomSheetOverlay').classList.add('hidden');
+  bottomSheetCallback = null;
+}
+
+function saveBottomSheet() {
+  const names = [];
+  document.querySelectorAll('#bottomSheetPeopleContainer .modal-person-input').forEach(inp => {
+    const val = inp.value.trim();
+    if (val) names.push(val);
+  });
+  const time = parseAndFormatTime(document.getElementById('bottomSheetTimeInput').value.trim());
+  if (!time) { showToast('Wpisz poprawne godziny pracy', 'danger'); return; }
+  if (names.length === 0) { showToast('Wpisz co najmniej jedną osobę', 'danger'); return; }
+
+  const category = state.categories.find(c => c.tasks.includes(state.activeCellTask));
+  if (!category) { showToast('Nie znaleziono kategorii dla tego zadania', 'danger'); return; }
+
+  if (state.editingShiftId) {
+    const existing = state.shifts.filter(s =>
+      s.id !== state.editingShiftId &&
+      s.taskId === state.activeCellTask &&
+      s.day === state.activeCellDay &&
+      s.weekStart === state.viewWeekStart
+    );
+    existing.forEach(s => {
+      const idx = state.shifts.indexOf(s);
+      if (idx > -1) state.shifts.splice(idx, 1);
+    });
+  } else {
+    const existing = state.shifts.filter(s =>
+      s.taskId === state.activeCellTask &&
+      s.day === state.activeCellDay &&
+      s.weekStart === state.viewWeekStart
+    );
+    existing.forEach(s => {
+      const idx = state.shifts.indexOf(s);
+      if (idx > -1) state.shifts.splice(idx, 1);
+    });
+  }
+
+  recordAction();
+  names.forEach(name => {
+    const emp = state.employees.find(e => e.name.toLowerCase().trim() === name.toLowerCase().trim());
+    if (!emp) {
+      showToast(`Nie znaleziono: ${name}`, 'danger');
+      return;
+    }
+    const shift = {
+      id: 'shift-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      taskId: state.activeCellTask,
+      day: state.activeCellDay,
+      employeeId: emp.id,
+      time: time,
+      weekStart: state.viewWeekStart
+    };
+    state.shifts.push(shift);
+  });
+  saveStateToStorage();
+  renderActiveView();
+  closeBottomSheet();
+  showToast('Zapisano pomyślnie', 'success');
+}
+
+// --- MOBILE: ACCORDION FOR CATEGORIES ---
+function collapseCategoriesOnMobile() {
+  if (window.innerWidth <= 768) {
+    document.querySelectorAll('.category-block').forEach(block => {
+      block.classList.add('collapsed');
+    });
+  }
+}
+
+function initCategoryAccordion() {
+  collapseCategoriesOnMobile();
+
+  document.addEventListener('click', (e) => {
+    const header = e.target.closest('.category-title-container');
+    if (!header || window.innerWidth > 768) return;
+    const block = header.closest('.category-block');
+    if (block) {
+      e.stopPropagation();
+      block.classList.toggle('collapsed');
+    }
+  });
+}
+
+// --- MOBILE: INIT ---
+function initMobile() {
+  initMobileMenu();
+  initCategoryAccordion();
+
+  // Bottom sheet close
+  document.getElementById('btnCloseBottomSheet').addEventListener('click', closeBottomSheet);
+  document.getElementById('btnBottomSheetCancel').addEventListener('click', closeBottomSheet);
+  document.getElementById('bottomSheetOverlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('bottomSheetOverlay')) closeBottomSheet();
+  });
+
+  // Bottom sheet form submit
+  document.getElementById('bottomSheetForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveBottomSheet();
+  });
+
+  // Bottom sheet delete
+  document.getElementById('btnBottomSheetDelete').addEventListener('click', () => {
+    if (state.editingShiftId) {
+      recordAction();
+      state.shifts = state.shifts.filter(s => s.id !== state.editingShiftId);
+      saveStateToStorage();
+      renderActiveView();
+      closeBottomSheet();
+      showToast('Usunięto dyżur z grafiku');
     }
   });
 }
