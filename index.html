@@ -173,7 +173,7 @@
         </div>
 
         <!-- MOBILE: Today's tasks section -->
-        <div id="mobileTodaySection">
+        <div id="mobileTodaySection" class="mobile-today-section">
           <h3 class="mobile-section-title">ZADANIA NA DZISIAJ</h3>
           <div id="todayTasksContainer"></div>
         </div>
@@ -188,6 +188,15 @@
 
       <!-- 2. FULL SCHEDULE TAB -->
       <section id="contentFullSchedule" class="tab-content">
+        <div class="schedule-search-bar">
+          <div class="search-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="scheduleCategorySearch" placeholder="Szukaj kategorii..." autocomplete="off">
+          </div>
+        </div>
         <div class="categories-container" id="categoriesContainer">
           <!-- Dynamic category blocks with tables -->
         </div>
@@ -282,7 +291,7 @@
             </svg>
             <h2>Przypisz osobę i czas</h2>
           </div>
-          <p class="modal-subtitle"><span id="modalCategoryName" class="category-label"></span>Zadanie: <span id="modalTaskName" class="highlight-text">Cleaning 1.0</span> – <span id="modalDayName">Poniedziałek</span></p>
+          <p class="modal-subtitle"><span id="modalCategoryName" class="category-label"></span>: <span id="modalTaskName" class="highlight-text">Cleaning 1.0</span> – <span id="modalDayName">Poniedziałek</span></p>
         </div>
 
         <div class="modal-body">

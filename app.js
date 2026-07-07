@@ -165,18 +165,21 @@ function saveCollapsedCategories(set) {
 function toggleCategoryCollapse(categoryId) {
   const collapsed = getCollapsedCategories();
   const el = document.querySelector(`.category-block[data-category-id="${categoryId}"] .category-collapsible`);
+  const title = document.querySelector(`.category-block[data-category-id="${categoryId}"] .category-title-container`);
   if (collapsed.has(categoryId)) {
     collapsed.delete(categoryId);
     if (el) {
       el.style.setProperty('--content-height', el.scrollHeight + 'px');
       el.classList.remove('cat-collapsed');
     }
+    if (title) title.classList.remove('collapsed');
   } else {
     collapsed.add(categoryId);
     if (el) {
       el.style.setProperty('--content-height', el.scrollHeight + 'px');
       el.classList.add('cat-collapsed');
     }
+    if (title) title.classList.add('collapsed');
   }
   saveCollapsedCategories(collapsed);
 }
@@ -610,7 +613,7 @@ function renderMyTasksView() {
         if (coworkers.length > 0) {
           const names = coworkers.map(cs => {
             const name = state.employees.find(e => e.id === cs.employeeId)?.name || 'Nieznany';
-            return `<span class="coworker-name">${name} (${cs.time})</span>`;
+            return `<div class="coworker-item">${name} (${cs.time})</div>`;
           });
           coworkersHtml = `
             <div class="day-card-coworkers">
@@ -620,7 +623,7 @@ function renderMyTasksView() {
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
               </svg>
-              <div class="coworker-names">${names.join(', ')}</div>
+              <div class="coworker-names">${names.join('')}</div>
             </div>
           `;
         }
@@ -697,6 +700,16 @@ function renderMyTasksView() {
 
 // --- VIEW 2: FULL SCHEDULE ---
 function renderFullScheduleView() {
+  // Save mobile expanded state before clearing DOM
+  let expandedOnMobile = [];
+  if (window.innerWidth <= 768) {
+    document.querySelectorAll('.category-block').forEach(block => {
+      if (!block.classList.contains('collapsed')) {
+        expandedOnMobile.push(block.getAttribute('data-category-id'));
+      }
+    });
+  }
+  
   const container = document.getElementById('categoriesContainer');
   container.innerHTML = '';
   
@@ -706,7 +719,9 @@ function renderFullScheduleView() {
   if (state.categories.length === 0) {
     if (!isAdmin) {
       container.innerHTML = `<p class="no-tasks-text">Brak zdefiniowanych kategorii.</p>`;
+      return;
     }
+    container.appendChild(createCategoryAdder(0));
     return;
   }
   
@@ -792,7 +807,7 @@ function renderFullScheduleView() {
       footerHtml = `
         <div class="category-footer">
           <div class="inline-add-task">
-            <input type="text" placeholder="Nazwa nowego zadania..." class="input-new-task" data-category-id="${cat.id}">
+            <input type="text" placeholder="Nazwa nowego zadania" class="input-new-task" data-category-id="${cat.id}">
             <button class="btn btn-success" onclick="handleAddTask('${cat.id}')">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -805,7 +820,7 @@ function renderFullScheduleView() {
       `;
     }
     
-    block.innerHTML = headerHtml + `<div class="category-collapsible${isCollapsed ? ' cat-collapsed' : ''}">` + tableHtml + footerHtml + `</div>`;
+    block.innerHTML = headerHtml + `<div class="category-collapsible${isCollapsed ? ' cat-collapsed' : ''}">` + tableHtml + `</div>` + footerHtml;
     container.appendChild(block);
     if (isAdmin) container.appendChild(createCategoryAdder(idx + 1));
     
@@ -840,7 +855,7 @@ function renderFullScheduleView() {
       if (isAdmin) {
         deleteTaskBtn = `
           <button class="btn-delete-task" onclick="deleteTask('${cat.id}', '${task}')" title="Usuń zadanie">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
             </svg>
@@ -914,7 +929,6 @@ function renderFullScheduleView() {
           card.innerHTML = `
             <div class="shift-card-header">
               <span class="employee-name">${empName}</span>
-              ${deleteCardBtn}
             </div>
             <div class="shift-card-body">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -922,11 +936,14 @@ function renderFullScheduleView() {
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
               <span>${shift.time}</span>
+              ${deleteCardBtn}
             </div>
           `;
           
           // Click on shift card to edit (Admin only)
           card.addEventListener('click', (e) => {
+            if (e.target.closest('.shift-card-delete-btn')) return;
+            if (window._shiftDragMoved) return; // was a drag, not a click
             if (isAdmin) {
               e.stopPropagation(); 
               openAssignModal(task, day, shift.id);
@@ -1001,6 +1018,7 @@ function renderFullScheduleView() {
           <button class="btn btn-text btn-sm btn-cancel-task-inline" style="display:none">Anuluj</button>
         </div>
       `;
+      addRow.appendChild(addCell);
       tbody.appendChild(addRow);
       
       const addBtn = addCell.querySelector('.btn-add-task-inline');
@@ -1065,8 +1083,87 @@ function renderFullScheduleView() {
   if (isAdmin) {
     enableCategoryDragDrop();
     state.categories.forEach(cat => enableTaskDragDrop(cat.id));
+    enableShiftDragDrop();
   }
   collapseCategoriesOnMobile();
+  
+  // Restore mobile expanded state
+  if (expandedOnMobile.length) {
+    expandedOnMobile.forEach(id => {
+      const block = document.querySelector(`.category-block[data-category-id="${id}"]`);
+      if (block) block.classList.remove('collapsed');
+    });
+  }
+
+  initFloatingTaskLabels();
+  initScheduleSearch();
+}
+
+let _floatingLabelsRafId = null;
+function _floatingLabelsUpdate() {
+  const wrs = document.querySelectorAll('.schedule-table-wrapper');
+  if (wrs.length === 0) return;
+  if (window.innerWidth > 768) {
+    document.querySelectorAll('.floating-task-labels').forEach(c => c.classList.remove('visible'));
+    return;
+  }
+  if (_floatingLabelsRafId) cancelAnimationFrame(_floatingLabelsRafId);
+  _floatingLabelsRafId = requestAnimationFrame(() => {
+    _floatingLabelsRafId = null;
+    wrs.forEach(w => {
+      const c = w.querySelector('.floating-task-labels');
+      if (!c) return;
+      const taskCol = w.querySelector('.cell-task-name, .col-task');
+      const wr = w.getBoundingClientRect();
+      let show = false;
+      if (taskCol) {
+        const colRect = taskCol.getBoundingClientRect();
+        show = colRect.right <= wr.left;
+      }
+      c.classList.toggle('visible', show);
+      if (!show) return;
+
+      const table = w.querySelector('.schedule-table');
+      if (!table) return;
+      const rows = table.querySelectorAll('tbody tr:not(.add-task-row)');
+
+      rows.forEach((row, index) => {
+        const span = row.querySelector('.cell-task-name .task-name-wrapper > span:not(.drag-handle-area)');
+        if (!span) return;
+        let label = c.children[index];
+        if (!label) {
+          label = document.createElement('div');
+          label.className = 'floating-task-label';
+          c.appendChild(label);
+        }
+        label.textContent = span.textContent;
+        const rr = row.getBoundingClientRect();
+        label.style.top = rr.top + 'px';
+        label.style.left = wr.left + 'px';
+      });
+
+      while (c.children.length > rows.length) {
+        c.removeChild(c.lastChild);
+      }
+    });
+  });
+}
+
+function initFloatingTaskLabels() {
+  document.querySelectorAll('.floating-task-labels').forEach(el => el.remove());
+  if (window.innerWidth > 768) return;
+  document.querySelectorAll('.schedule-table-wrapper').forEach(w => {
+    const c = document.createElement('div');
+    c.className = 'floating-task-labels';
+    w.appendChild(c);
+    w.addEventListener('scroll', _floatingLabelsUpdate, { passive: true });
+  });
+  if (!window._floatingLabelsInit) {
+    window._floatingLabelsInit = true;
+    window.addEventListener('scroll', _floatingLabelsUpdate, { passive: true });
+    window.addEventListener('resize', _floatingLabelsUpdate, { passive: true });
+  }
+  _floatingLabelsUpdate();
 }
 
 let openCategoryAdder = null;
@@ -1108,6 +1205,17 @@ function initDrag(element, type, sourceId, sourceName, clickY) {
   drag.type = type;
   drag.startY = 0;
   
+  // Save pre-drag mobile expanded state
+  if (window.innerWidth <= 768) {
+    drag._preCollapsedState = new Map();
+    document.querySelectorAll('.category-block').forEach(block => {
+      const id = block.getAttribute('data-category-id');
+      if (id) {
+        drag._preCollapsedState.set(id, block.classList.contains('collapsed'));
+      }
+    });
+  }
+  
   document.body.classList.add('dragging-active');
   element.classList.add('dragging');
   element.style.borderLeft = '4px solid var(--primary)';
@@ -1140,7 +1248,13 @@ function initDrag(element, type, sourceId, sourceName, clickY) {
   const ghost = document.createElement('div');
   ghost.className = 'drag-ghost';
   
-  if (type === 'task') {
+  if (type === 'shift') {
+    ghost.innerHTML = `
+      <span class="drag-ghost-shift">
+        <span class="drag-ghost-name">${sourceName}</span>
+      </span>
+    `;
+  } else if (type === 'task') {
     ghost.innerHTML = `
       <span class="drag-ghost-row">
         <span class="drag-ghost-grip">≡</span>
@@ -1213,6 +1327,21 @@ function moveDragGhost(e) {
       bestEl.classList.toggle('drag-before', y < bestMid);
       bestEl.classList.toggle('drag-after', y >= bestMid);
     }
+  } else if (drag.type === 'shift') {
+    window._shiftDragMoved = true;
+    document.querySelectorAll('.cell-day.drag-over').forEach(el => el.classList.remove('drag-over'));
+    const cells = document.querySelectorAll('.schedule-table td.cell-day');
+    let bestCell = null;
+    for (const cell of cells) {
+      const r = cell.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        bestCell = cell;
+        break;
+      }
+    }
+    if (bestCell && bestCell !== drag.source?.closest?.(null)) {
+      bestCell.classList.add('drag-over');
+    }
   } else if (drag.dropLine) {
     // Tasks: show a clean horizontal line between rows
     const tbody = document.querySelector(`.category-table-body[data-category-id="${drag.taskCategoryId}"]`);
@@ -1272,7 +1401,9 @@ function endDrag(e) {
   
   const targets = drag.type === 'category'
     ? document.querySelectorAll('#categoriesContainer .category-block')
-    : document.querySelectorAll(`.category-table-body[data-category-id="${drag.taskCategoryId}"] tr:not(.add-task-row)`);
+    : drag.type === 'shift'
+      ? null
+      : document.querySelectorAll(`.category-table-body[data-category-id="${drag.taskCategoryId}"] tr:not(.add-task-row)`);
   
   let target = null;
   let pos = 'before';
@@ -1291,6 +1422,16 @@ function endDrag(e) {
         pos = dropY < mid ? 'before' : 'after';
       }
     });
+  } else if (drag.type === 'shift') {
+    const dropX = eventX(e);
+    const cells = document.querySelectorAll('.schedule-table td.cell-day');
+    for (const cell of cells) {
+      const r = cell.getBoundingClientRect();
+      if (dropX >= r.left && dropX <= r.right && dropY >= r.top && dropY <= r.bottom) {
+        target = cell;
+        break;
+      }
+    }
   } else {
     const rows = Array.from(targets).filter(el => el !== drag.source);
     for (const row of rows) {
@@ -1322,6 +1463,20 @@ function endDrag(e) {
         saveStateToStorage();
         didMove = true;
       }
+    } else if (drag.type === 'shift') {
+      const newTask = target.getAttribute('data-task');
+      const newDay = target.getAttribute('data-day');
+      const shiftId = drag.source?.getAttribute('data-shift-id');
+      if (shiftId && newTask && newDay) {
+        const shift = state.shifts.find(s => s.id === shiftId);
+        if (shift && (shift.taskId !== newTask || shift.day !== newDay)) {
+          recordAction();
+          shift.taskId = newTask;
+          shift.day = newDay;
+          saveStateToStorage();
+          didMove = true;
+        }
+      }
     } else {
       const draggedTask = drag.source.getAttribute('data-task-name');
       const targetTask = target.getAttribute('data-task-name');
@@ -1343,10 +1498,20 @@ function endDrag(e) {
     }
   }
   
-  const movedId = drag.source?.getAttribute('data-category-id') || drag.source?.getAttribute('data-task-name');
+  const src = drag.source;
+  const movedId = src?.getAttribute('data-category-id') || src?.getAttribute('data-task-name') || src?.getAttribute('data-shift-id');
   const wantCollapsed = getCollapsedCategories();
-  
+  const wasShift = drag.type === 'shift';
+  const wasTask = drag.type === 'task';
+
   cleanupDrag({ skipRestore: true });
+
+  if (didMove) {
+    renderFullScheduleView();
+  }
+
+  // Skip category collapse/expand/freeze for task/shift drags
+  if (wasShift || wasTask) return;
   
   // Freeze scroll + force scrollbar visible so collapse/expand doesn't jump
   const freezeY = window.scrollY;
@@ -1355,10 +1520,6 @@ function endDrag(e) {
   document.body.style.top = -freezeY + 'px';
   document.body.style.left = '0';
   document.body.style.right = '0';
-  
-  if (didMove) {
-    renderFullScheduleView();
-  }
   
   // Collapse non-user-collapsed elements silently, then expand with transition
   const toExpand = [];
@@ -1380,6 +1541,26 @@ function endDrag(e) {
       el.style.transition = '';
       el.classList.remove('cat-collapsed');
     }
+  }
+  
+  // Restore mobile expanded state from before drag
+  if (drag._preCollapsedState) {
+    document.querySelectorAll('.category-block').forEach(block => {
+      const id = block.getAttribute('data-category-id');
+      if (id && drag._preCollapsedState.has(id) && !drag._preCollapsedState.get(id)) {
+        const collapsible = block.querySelector('.category-collapsible');
+        if (collapsible) {
+          const h = collapsible.scrollHeight;
+          collapsible.style.setProperty('--content-height', h + 'px');
+          collapsible.style.transition = 'none';
+          collapsible.classList.remove('cat-collapsed');
+          void collapsible.offsetHeight;
+          collapsible.style.transition = '';
+        }
+        block.classList.remove('collapsed');
+      }
+    });
+    delete drag._preCollapsedState;
   }
   
   // Unfreeze scroll after the transition ends
@@ -1408,6 +1589,7 @@ function cleanupDrag(options = {}) {
   document.querySelectorAll('.category-block, .category-table-body tr').forEach(el => {
     el.classList.remove('dragging', 'drag-before', 'drag-after');
   });
+  document.querySelectorAll('.cell-day.drag-over').forEach(el => el.classList.remove('drag-over'));
   document.body.classList.remove('dragging-active', 'dragging-category');
   document.documentElement.style.overflowY = '';
   document.body.style.position = '';
@@ -1491,6 +1673,51 @@ function enableTaskDragDrop(categoryId) {
     }
     handle.addEventListener('mousedown', onStart);
     handle.addEventListener('touchstart', onStart, { passive: false });
+  });
+}
+
+function enableShiftDragDrop() {
+  if (window.innerWidth <= 768) return;
+  document.querySelectorAll('.shift-card').forEach(card => {
+    let startX, startY;
+
+    function shiftMove(e) {
+      const x = eventX(e);
+      const y = eventY(e);
+      if (Math.abs(x - startX) > 5 || Math.abs(y - startY) > 5) {
+        document.removeEventListener('mousemove', shiftMove);
+        document.removeEventListener('mouseup', shiftEnd);
+        document.removeEventListener('touchmove', shiftMove);
+        document.removeEventListener('touchend', shiftEnd);
+        window._shiftDragMoved = false;
+        const empName = card.querySelector('.employee-name')?.textContent || '';
+        const time = card.querySelector('.shift-card-body > span')?.textContent || '';
+        const shiftId = card.getAttribute('data-shift-id');
+        initDrag(card, 'shift', shiftId, `${empName} ${time}`);
+      }
+    }
+
+    function shiftEnd() {
+      document.removeEventListener('mousemove', shiftMove);
+      document.removeEventListener('mouseup', shiftEnd);
+      document.removeEventListener('touchmove', shiftMove);
+      document.removeEventListener('touchend', shiftEnd);
+    }
+
+    function onStart(e) {
+      if (e.target.closest('.shift-card-delete-btn')) return;
+      e.preventDefault();
+      startX = eventX(e);
+      startY = eventY(e);
+      window._shiftDragMoved = false;
+      document.addEventListener('mousemove', shiftMove);
+      document.addEventListener('mouseup', shiftEnd);
+      document.addEventListener('touchmove', shiftMove, { passive: false });
+      document.addEventListener('touchend', shiftEnd);
+    }
+
+    card.addEventListener('mousedown', onStart);
+    card.addEventListener('touchstart', onStart, { passive: false });
   });
 }
 
@@ -1913,7 +2140,7 @@ function openAssignModal(task, day, shiftId = null) {
   for (const cat of state.categories) {
     if (cat.tasks.includes(task)) { catName = cat.name; break; }
   }
-  titleCategory.textContent = catName ? `${catName} · ` : '';
+  titleCategory.textContent = catName || '';
   
   if (shiftId) {
     const shift = state.shifts.find(s => s.id === shiftId);
@@ -3142,6 +3369,9 @@ function openBottomSheet(task, day, shiftId = null) {
   const timeInput = document.getElementById('bottomSheetTimeInput');
 
   taskName.textContent = task;
+  
+  const catName = state.categories.find(c => c.tasks.includes(task))?.name || '';
+  document.getElementById('bottomSheetCategoryName').textContent = catName;
 
   state.activeCellTask = task;
   state.activeCellDay = day;
@@ -3172,6 +3402,17 @@ function closeBottomSheet() {
   bottomSheetCallback = null;
 }
 
+function deleteBottomSheetShift() {
+  if (state.editingShiftId) {
+    recordAction();
+    state.shifts = state.shifts.filter(s => s.id !== state.editingShiftId);
+    saveStateToStorage();
+    renderActiveView();
+    closeBottomSheet();
+    showToast('Usunięto dyżur z grafiku');
+  }
+}
+
 function saveBottomSheet() {
   const names = [];
   document.querySelectorAll('#bottomSheetPeopleContainer .modal-person-input').forEach(inp => {
@@ -3188,16 +3429,6 @@ function saveBottomSheet() {
   if (state.editingShiftId) {
     const existing = state.shifts.filter(s =>
       s.id !== state.editingShiftId &&
-      s.taskId === state.activeCellTask &&
-      s.day === state.activeCellDay &&
-      s.weekStart === state.viewWeekStart
-    );
-    existing.forEach(s => {
-      const idx = state.shifts.indexOf(s);
-      if (idx > -1) state.shifts.splice(idx, 1);
-    });
-  } else {
-    const existing = state.shifts.filter(s =>
       s.taskId === state.activeCellTask &&
       s.day === state.activeCellDay &&
       s.weekStart === state.viewWeekStart
@@ -3234,9 +3465,15 @@ function saveBottomSheet() {
 // --- MOBILE: ACCORDION FOR CATEGORIES ---
 function collapseCategoriesOnMobile() {
   if (window.innerWidth <= 768) {
+    const collapsibles = document.querySelectorAll('.category-collapsible');
+    collapsibles.forEach(el => el.style.transition = 'none');
     document.querySelectorAll('.category-block').forEach(block => {
       block.classList.add('collapsed');
     });
+    if (collapsibles.length) {
+      void collapsibles[0].offsetHeight;
+      collapsibles.forEach(el => el.style.transition = '');
+    }
   }
 }
 
@@ -3245,13 +3482,63 @@ function initCategoryAccordion() {
 
   document.addEventListener('click', (e) => {
     const header = e.target.closest('.category-title-container');
-    if (!header || window.innerWidth > 768) return;
+    if (!header) return;
+    // Ignore clicks on action buttons
+    if (e.target.closest('.btn-collapse-category, .btn-edit-category, .btn-delete-category, .drag-handle-area')) return;
+
     const block = header.closest('.category-block');
-    if (block) {
-      e.stopPropagation();
+    if (!block) return;
+    e.stopPropagation();
+
+    if (window.innerWidth > 768) {
+      const id = block.getAttribute('data-category-id');
+      if (id) toggleCategoryCollapse(id);
+    } else {
+      const collapsible = block.querySelector('.category-collapsible');
+      if (collapsible) {
+        collapsible.style.setProperty('--content-height', collapsible.scrollHeight + 'px');
+      }
       block.classList.toggle('collapsed');
     }
   });
+}
+
+// --- SCHEDULE CATEGORY SEARCH ---
+function initScheduleSearch() {
+  const input = document.getElementById('scheduleCategorySearch');
+  if (!input) return;
+
+  const filter = () => {
+    const query = input.value.trim().toLowerCase();
+    const blocks = document.querySelectorAll('#categoriesContainer > *');
+    let visibleCount = 0;
+    blocks.forEach(block => {
+      if (!block.classList.contains('category-block')) {
+        block.style.display = query ? 'none' : '';
+        return;
+      }
+      const title = block.querySelector('.category-title');
+      if (!title) return;
+      const match = !query || title.textContent.toLowerCase().includes(query);
+      block.style.display = match ? '' : 'none';
+      if (match) visibleCount++;
+    });
+    const noResult = document.getElementById('scheduleNoResult');
+    if (query && visibleCount === 0) {
+      if (!noResult) {
+        const msg = document.createElement('p');
+        msg.id = 'scheduleNoResult';
+        msg.className = 'no-tasks-text';
+        msg.textContent = 'Brak pasujących kategorii.';
+        document.getElementById('categoriesContainer').after(msg);
+      }
+    } else if (noResult) {
+      noResult.remove();
+    }
+  };
+
+  input.addEventListener('input', filter);
+  if (input.value.trim()) filter();
 }
 
 // --- MOBILE: INIT ---
@@ -3276,17 +3563,45 @@ function initMobile() {
     saveBottomSheet();
   });
 
-  // Bottom sheet delete
-  document.getElementById('btnBottomSheetDelete').addEventListener('click', () => {
-    if (state.editingShiftId) {
-      recordAction();
-      state.shifts = state.shifts.filter(s => s.id !== state.editingShiftId);
-      saveStateToStorage();
-      renderActiveView();
-      closeBottomSheet();
-      showToast('Usunięto dyżur z grafiku');
+  // Bottom sheet delete (handled via onclick attribute in HTML)
+  // no duplicate listener needed
+
+  // Focus person input when bottom sheet opens
+  const sheetOverlay = document.getElementById('bottomSheetOverlay');
+  if (sheetOverlay) {
+    const observer = new MutationObserver(() => {
+      if (!sheetOverlay.classList.contains('hidden')) {
+        const input = document.querySelector('#bottomSheetPeopleContainer .modal-person-input');
+        if (input && document.activeElement !== input) {
+          input.focus();
+          setTimeout(() => input.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
+        }
+      }
+    });
+    observer.observe(sheetOverlay, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Scroll input into view when focused (keyboard may cover it)
+  document.addEventListener('focusin', (e) => {
+    if (e.target.closest('#bottomSheetPeopleContainer') && e.target.matches('.modal-person-input')) {
+      setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
     }
   });
+
+  // Adjust bottom sheet when keyboard opens/closes via visualViewport
+  if (window.visualViewport) {
+    const sheet = document.getElementById('bottomSheet');
+    const onViewportChange = () => {
+      if (!sheet) return;
+      const diff = window.innerHeight - window.visualViewport.height;
+      if (diff > 80) {
+        sheet.style.maxHeight = Math.min(window.visualViewport.height * 0.92, 500) + 'px';
+      } else {
+        sheet.style.maxHeight = '';
+      }
+    };
+    window.visualViewport.addEventListener('resize', onViewportChange);
+  }
 }
 
 // --- HELPER: ESCAPE HTML ---
