@@ -116,13 +116,7 @@ function navigateWeek(direction) {
 }
 
 function initWeek() {
-  const saved = localStorage.getItem('bldsrv_view_week');
-  if (saved) {
-    const d = new Date(saved + 'T00:00:00');
-    state.viewWeekStart = d.getDay() === 1 ? saved : getWeekStartStr(new Date());
-  } else {
-    state.viewWeekStart = getWeekStartStr(new Date());
-  }
+  state.viewWeekStart = getWeekStartStr(new Date());
   const currentMonday = getWeekStartStr(new Date());
   state.shifts.forEach(s => {
     if (!s.weekStart) s.weekStart = currentMonday;

@@ -196,8 +196,8 @@
       <!-- 3. MANAGE TEAM TAB -->
       <section id="contentManageTeam" class="tab-content hidden">
         <div class="team-management-grid">
-          <!-- Left: Add Person Card -->
-          <div class="card add-person-card">
+          <!-- Add Person Card -->
+          <div class="card">
             <div class="card-header">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -205,7 +205,7 @@
                 <line x1="19" y1="8" x2="19" y2="14"></line>
                 <line x1="22" y1="11" x2="16" y2="11"></line>
               </svg>
-              <h3>Dodaj Nową Osoba</h3>
+              <h3>Dodaj nową osobę</h3>
             </div>
             <div class="card-body">
               <form id="addPersonForm" onsubmit="return false;">
@@ -231,21 +231,25 @@
             </div>
           </div>
 
-          <!-- Right: Members List Card -->
-          <div class="card members-list-card">
-            <div class="card-header space-between">
-              <div class="header-title-group">
-                <h3>Zarejestrowane osoby w zespole (<span id="membersCount">0</span>)</h3>
-              </div>
-              <div class="search-wrapper">
+          <!-- Members Card -->
+          <div class="card">
+            <div class="card-header">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <h3>Zarządzanie osobami w zespole (<span id="membersCount">0</span>)</h3>
+            </div>
+            <div class="card-body">
+              <div class="search-wrapper team-search-wrapper">
                 <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <input type="text" id="searchMemberInput" placeholder="Wyszukaj osobę">
               </div>
-            </div>
-            <div class="card-body scrollable">
               <div class="members-list" id="membersListContainer">
                 <!-- Dynamic member items -->
               </div>
