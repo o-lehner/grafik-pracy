@@ -52,6 +52,22 @@ const DEFAULT_PRESETS = [
 
 const DAYS_OF_WEEK = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek'];
 
+// --- MOBILE SECTION CONFIG (icon + title for header indicator) ---
+const MOBILE_SECTION_CONFIG = {
+  'my-tasks': {
+    icon: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    title: 'Zadania'
+  },
+  'full-schedule': {
+    icon: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>`,
+    title: 'Grafik'
+  },
+  'manage-team': {
+    icon: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
+    title: 'Zespół'
+  }
+};
+
 // --- WEEK HELPERS (local timezone, YYYY-MM-DD strings) ---
 function pad(n) {
   return String(n).padStart(2, '0');
@@ -431,6 +447,7 @@ function updateRoleMode() {
   const body = document.body;
   const tabManageTeamBtn = document.getElementById('tabManageTeam');
   const undoRedoHeader = document.getElementById('undoRedoHeader');
+  const bottomNavTeam = document.getElementById('bottomNavTeam');
   
   if (!profile) return;
 
@@ -438,10 +455,12 @@ function updateRoleMode() {
     body.classList.add('app-mode-administrator');
     tabManageTeamBtn.classList.remove('hidden');
     undoRedoHeader.classList.remove('hidden');
+    if (bottomNavTeam) bottomNavTeam.classList.remove('hidden');
   } else {
     body.classList.remove('app-mode-administrator');
     tabManageTeamBtn.classList.add('hidden');
     undoRedoHeader.classList.add('hidden');
+    if (bottomNavTeam) bottomNavTeam.classList.add('hidden');
     
     if (state.activeTab === 'manage-team') {
       switchTab('full-schedule');
@@ -471,8 +490,8 @@ function updateProfileDisplay() {
   if (!profile) return;
   const avatarEl = document.getElementById('profileAvatar');
   const nameEl = document.getElementById('profileName');
+  const initials = profile.name.split(' ').map(s => s[0]).join('').toUpperCase().slice(0, 2);
   if (avatarEl) {
-    const initials = profile.name.split(' ').map(s => s[0]).join('').toUpperCase().slice(0, 2);
     avatarEl.textContent = initials;
   }
   if (nameEl) {
@@ -484,6 +503,8 @@ function switchTab(tabId) {
   state.activeTab = tabId;
   renderTabs();
   renderActiveView();
+  updateBottomNav();
+  updateMobileSectionIndicator(tabId);
 }
 
 function renderTabs() {
@@ -559,9 +580,12 @@ function renderMyTasksView() {
   if (currentDayIndex < 0 || currentDayIndex > 4) {
     currentDayIndex = -1;
   }
+  const isCurrentWeek = state.viewWeekStart === getWeekStartStr(date);
   
-  const container = document.getElementById('myTasksGrid');
-    container.innerHTML = '';
+  const gridContainer = document.getElementById('myTasksGrid');
+  gridContainer.innerHTML = '';
+  const todayContainer = document.getElementById('todayTasksContainer');
+  if (todayContainer) todayContainer.innerHTML = '';
   
   function getTaskCategory(taskName) {
     for (const cat of state.categories) {
@@ -569,77 +593,113 @@ function renderMyTasksView() {
     }
     return '';
   }
-  
-  DAYS_OF_WEEK.forEach((day, index) => {
-    const isToday = index === currentDayIndex;
-    const dayShifts = state.shifts.filter(s => s.employeeId === profile.id && s.day === day && s.weekStart === state.viewWeekStart);
+
+  function buildDayCard(day, index, weekStart, opts) {
+    const isToday = opts?.forceToday || (index === currentDayIndex && isCurrentWeek && weekStart === state.viewWeekStart);
+    const dayShifts = state.shifts.filter(s => s.employeeId === profile.id && s.day === day && s.weekStart === weekStart);
     
     const card = document.createElement('div');
     card.className = `day-column-card ${isToday ? 'is-today' : ''}`;
     
-    let shiftsHtml = '';
+    let tasksHtml = '';
     if (dayShifts.length > 0) {
       dayShifts.forEach(shift => {
         const coworkers = state.shifts.filter(s => 
           s.taskId === shift.taskId && 
           s.day === shift.day && 
           s.employeeId !== profile.id &&
-          s.weekStart === state.viewWeekStart &&
+          s.weekStart === weekStart &&
           timesOverlap(shift.time, s.time)
         );
         
         let coworkersHtml = '';
         if (coworkers.length > 0) {
-          coworkersHtml += `
-            <div class="coworkers-section">
-              <span class="coworkers-label">Współpracownicy:</span>
-              <ul class="coworkers-list-mini">
-          `;
-          coworkers.forEach(coworkerShift => {
-            const cowName = state.employees.find(e => e.id === coworkerShift.employeeId)?.name || 'Nieznany';
-            coworkersHtml += `
-              <li class="coworker-item-mini">
-                <span class="coworker-name-group">
-                  <span>${cowName}</span>
-                </span>
-                <span class="coworker-time-badge">${coworkerShift.time}</span>
-              </li>
-            `;
+          const names = coworkers.map(cs => {
+            const name = state.employees.find(e => e.id === cs.employeeId)?.name || 'Nieznany';
+            return `<span class="coworker-name">${name} (${cs.time})</span>`;
           });
-          coworkersHtml += `</ul></div>`;
+          coworkersHtml = `
+            <div class="day-card-coworkers">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <div class="coworker-names">${names.join(', ')}</div>
+            </div>
+          `;
         }
         
         const categoryName = getTaskCategory(shift.taskId);
-        shiftsHtml += `
-          <div class="shift-card">
-            <div class="shift-card-header">
-              <span class="employee-name">${shift.time}</span>
+        tasksHtml += `
+          <div class="day-card-task">
+            <div class="day-card-task-row">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              ${categoryName ? `<span class="task-category-label">${categoryName}:</span>` : ''}
+              <span class="task-name-label">${shift.taskId}</span>
             </div>
-            <div class="task-info">
-              ${categoryName ? `<span class="task-category">${categoryName}</span>` : ''}
-              <span class="task-name">${shift.taskId}</span>
+            <div class="day-card-time">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span>${shift.time}</span>
             </div>
             ${coworkersHtml}
           </div>
         `;
       });
     } else {
-      shiftsHtml = `<p class="no-tasks-text">Brak zaplanowanych zadań</p>`;
+      tasksHtml = `<p class="no-tasks-text">Brak zaplanowanych zadań</p>`;
     }
     
     card.innerHTML = `
-      <div class="day-column-header">
+      <div class="day-card-header">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
         <span class="day-name-label">${day}</span>
         ${isToday ? '<span class="today-badge">DZISIAJ</span>' : ''}
       </div>
-      <div class="day-column-body">
-        ${shiftsHtml}
+      <div class="day-card-divider"></div>
+      <div class="day-card-tasks">
+        ${tasksHtml}
       </div>
     `;
     
-    container.appendChild(card);
+    return card;
+  }
+  
+  const todayWeekStart = getWeekStartStr(new Date());
+  
+  DAYS_OF_WEEK.forEach((day, index) => {
+    const card = buildDayCard(day, index, state.viewWeekStart);
+    gridContainer.appendChild(card);
+    
+    if (index === currentDayIndex && todayContainer && window.innerWidth <= 768) {
+      const todayCard = buildDayCard(day, index, todayWeekStart, { forceToday: true });
+      todayContainer.appendChild(todayCard);
+    }
   });
+  
+  if (currentDayIndex === -1 && todayContainer && window.innerWidth <= 768) {
+    todayContainer.innerHTML = '<p class="no-tasks-text">Dziś jest dzień wolny od pracy</p>';
+  }
+  
+  const section = document.getElementById('mobileTodaySection');
+  if (section) {
+    section.style.display = window.innerWidth <= 768 ? 'block' : 'none';
+  }
 }
+
+
 
 // --- VIEW 2: FULL SCHEDULE ---
 function renderFullScheduleView() {
@@ -786,7 +846,7 @@ function renderFullScheduleView() {
       if (isAdmin) {
         deleteTaskBtn = `
           <button class="btn-delete-task" onclick="deleteTask('${cat.id}', '${task}')" title="Usuń zadanie">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
             </svg>
@@ -2832,6 +2892,119 @@ function initMobileMenu() {
   });
 }
 
+// --- MOBILE: BOTTOM NAVIGATION ---
+function updateMobileSectionIndicator(tabId) {
+  const el = document.getElementById('mobileSectionIndicator');
+  if (!el) return;
+  const iconEl = document.getElementById('msiIcon');
+  const titleEl = document.getElementById('msiTitle');
+  const config = MOBILE_SECTION_CONFIG[tabId];
+  if (config) {
+    if (iconEl) iconEl.innerHTML = config.icon;
+    if (titleEl) titleEl.textContent = config.title;
+  }
+}
+
+function updateBottomNav() {
+  document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(item => {
+    const tab = item.getAttribute('data-tab');
+    item.classList.toggle('active', tab === state.activeTab);
+  });
+}
+
+function initBottomNav() {
+  // Click on bottom nav items
+  document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(item => {
+    item.addEventListener('click', () => {
+      const tab = item.getAttribute('data-tab');
+      if (tab) switchTab(tab);
+    });
+  });
+
+  // Click on profile avatar -> toggle profile list (handled inline in HTML)
+  // (no addEventListener needed; inline onclick="toggleProfileList()" is used)
+
+  // Click on logout -> go to login screen
+  const logoutBtn = document.getElementById('bottomNavLogoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('bldsrv_active_profile');
+      location.reload();
+    });
+  }
+}
+
+// --- MOBILE: PROFILE LIST ---
+function toggleProfileList() {
+  const panel = document.getElementById('profileListPanel');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    renderProfileList();
+    panel.classList.remove('hidden');
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function closeProfileList() {
+  const panel = document.getElementById('profileListPanel');
+  if (panel) panel.classList.add('hidden');
+}
+
+function renderProfileList() {
+  const container = document.getElementById('profileListItems');
+  if (!container) return;
+
+  container.innerHTML = '';
+  if (state.employees.length === 0) {
+    container.innerHTML = '<p class="profile-list-empty">Brak osób w zespole</p>';
+    return;
+  }
+
+  state.employees.forEach(emp => {
+    const initials = emp.name.split(' ').map(s => s[0]).join('').toUpperCase().slice(0, 2);
+    const roleClass = emp.role === 'Administrator' ? 'role-admin' : 'role-osoba';
+    const isActive = emp.id === state.currentProfileId;
+
+    const item = document.createElement('button');
+    item.className = 'profile-list-item' + (isActive ? ' active-profile' : '');
+    item.innerHTML = `
+      <div class="profile-list-item-avatar ${roleClass}">${initials}</div>
+      <div class="profile-list-item-info">
+        <span class="profile-list-item-name">${escapeHtml(emp.name)}</span>
+        <span class="profile-list-item-role">${emp.role}</span>
+      </div>
+      ${isActive ? '<svg class="profile-list-item-check" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+    `;
+    item.addEventListener('click', () => {
+      if (emp.id !== state.currentProfileId) {
+        state.currentProfileId = emp.id;
+        localStorage.setItem('bldsrv_active_profile', state.currentProfileId);
+        populateProfileDropdown();
+        updateProfileDisplay();
+        updateRoleMode();
+        if (state.activeTab === 'my-tasks') renderMyTasksView();
+        renderFullScheduleView();
+        showToast(`Przełączono na: ${emp.name}`);
+      }
+      closeProfileList();
+    });
+    container.appendChild(item);
+  });
+}
+
+function initProfileList() {
+  document.getElementById('btnCloseProfileList').addEventListener('click', closeProfileList);
+  document.addEventListener('click', (e) => {
+    const panel = document.getElementById('profileListPanel');
+    const btn = document.getElementById('bottomNavProfileBtn');
+    if (panel && !panel.classList.contains('hidden') &&
+        !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+      closeProfileList();
+    }
+  });
+}
+
 // --- MOBILE: BOTTOM SHEET ---
 let bottomSheetCallback = null;
 
@@ -3090,6 +3263,10 @@ function initCategoryAccordion() {
 // --- MOBILE: INIT ---
 function initMobile() {
   initMobileMenu();
+  initBottomNav();
+  initProfileList();
+  updateBottomNav();
+  updateMobileSectionIndicator(state.activeTab);
   initCategoryAccordion();
 
   // Bottom sheet close
